@@ -1,0 +1,82 @@
+seed_everything: 42
+
+model:
+  class_path: dev_hongyi.pl_wrapper.sam2ref_pl.RefSam2LightningModel
+  init_args:
+    model_cfg:
+      sam2_cfg: "sam2_hiera_t.yaml"
+      checkpoint_path: "./checkpoints/sam2_hiera_tiny.pt"
+      skip_custom_iou_in_attn: True
+      semantic_ref: True
+      memory_bank_cfg:
+        category_num: 80
+        length: 4
+        feat_size: 4096
+        obj_ptr_size_size: 4  # 256 / 64 = 4
+        dimension: 64
+      testing_cfg:
+        point_bs: 2
+        nms_iou_thr: 0.5
+        max_keep_num: 100
+    train_cfg:
+      train_bs_per_gpu: 1
+      lr_cfg:
+        base_bs: 8
+        base_lr: 1e-5
+      weight_decay: 2e-6
+      lr_decay_epochs:
+        - 8
+        - 11
+      warmup_iters: 500
+    dataset_cfgs:
+      train:
+        name: "coco"
+        root: "./data/coco/val2017"
+        json_file: "./data/coco/annotations_refsam2/instances_val2017_tiny_filtered_by_0.6.json"
+        semantic_ref: True
+        image_size: 1024
+        remove_bad: False
+        max_cat_num: 2
+        max_mem_length: 2
+        n_pos_points: 8
+        neg_ratio: 0.0
+      fill_memory:
+        name: "coco"
+        root: "./data/coco/train2017"
+        json_file: "./data/coco/annotations_refsam2/instances_train2017_tiny_filtered_by_0.6.json"
+        memory_pkl: "./data/coco/annotations_refsam2/memory/train2017_allClasses_length4_semantic_v1.pkl"
+        semantic_ref: True
+        image_size: 1024
+        memory_length: 4
+      test:
+        name: "coco"
+        root: "./data/coco/val2017"
+        json_file: "./data/coco/annotations_refsam2/val2017_100.json"
+        image_size: 1024
+        n_points_per_edge: 16
+    data_load_cfgs:
+      workers: 4
+
+
+trainer:
+  max_epochs: 12
+  check_val_every_n_epoch: 1
+  devices: 8
+  benchmark: true
+  precision: 16-mixed
+#  gradient_clip_val: 1.0
+#  gradient_clip_algorithm: norm
+  callbacks:
+    - class_path: pytorch_lightning.callbacks.TQDMProgressBar
+      init_args:
+        refresh_rate: 10
+    - class_path: pytorch_lightning.callbacks.ModelCheckpoint
+      init_args:
+        every_n_epochs: 1
+        save_top_k: -1
+        filename: "{epoch}"
+  logger:
+    - class_path: pytorch_lightning.loggers.CSVLogger
+      init_args:
+        flush_logs_every_n_steps: 50
+        save_dir: ./work_dirs/test_semantic_ref

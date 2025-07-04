@@ -1,0 +1,56 @@
+seed_everything: 42
+
+model:
+  class_path: dev_hongyi.pl_wrapper.sam2matcher_pl.Sam2MatcherLightningModel
+  init_args:
+    model_cfg:
+      name: "matching_baseline"
+      sam2_cfg_file: "sam2_hiera_t.yaml"
+      sam2_ckpt_path: "./checkpoints/sam2_hiera_tiny.pt"
+      sam2_amg_cfg:
+        points_per_side: 64
+        pred_iou_thresh: 0.6
+        sel_stability_score_thresh: 0.9
+        box_nms_thresh: 0.7
+        multimask_output: True
+      encoder_cfg:
+        name: "dinov2_large"
+        img_size: 518
+        patch_size: 14
+      encoder_ckpt_path: "./checkpoints/dinov2/dinov2_vitl14_pretrain.pth"
+      memory_bank_cfg:
+        enable: True
+        category_num: 80
+        length: 5
+    dataset_cfgs:
+      fill_memory:
+        name: "coco"
+        root: "./data/coco/train2017"
+        json_file: "./data/coco/annotations/instances_train2017.json"
+        memory_pkl: "./data/coco/annotations_refsam2/memory/train2017_allClasses_length5_v1.pkl"
+        image_size: 518
+        memory_length: 5
+        norm_img: False
+      test:
+        name: "coco"
+        root: "./data/coco/val2017"
+        json_file: "./data/coco/annotations/instances_val2017.json"
+        image_size: 518
+        norm_img: False
+        with_query_points: False
+    data_load_cfgs:
+      workers: 4
+
+trainer:
+  devices: 4
+  benchmark: true
+  precision: 32
+  callbacks:
+    - class_path: pytorch_lightning.callbacks.TQDMProgressBar
+      init_args:
+        refresh_rate: 10
+  logger:
+    - class_path: pytorch_lightning.loggers.CSVLogger
+      init_args:
+        flush_logs_every_n_steps: 50
+        save_dir: ./work_dirs/test_pl

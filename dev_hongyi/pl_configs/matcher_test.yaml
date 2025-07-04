@@ -1,0 +1,76 @@
+seed_everything: 42
+
+model:
+  class_path: dev_hongyi.pl_wrapper.sam2matcher_pl.Sam2MatcherLightningModel
+  init_args:
+    model_cfg:
+      sam2_cfg_file: "sam2_hiera_t.yaml"
+      sam2_ckpt_path: "./checkpoints/sam2_hiera_tiny.pt"
+      sam2_amg_cfg:
+        points_per_side: 64
+        pred_iou_thresh: 0.88
+        sel_stability_score_thresh: 0.9
+        box_nms_thresh: 0.65
+        multimask_output: True
+      encoder_cfg:
+        name: "dinov2_large"
+        img_size: 1036
+        patch_size: 14
+      encoder_ckpt_path: "./checkpoints/dinov2/dinov2_vitl14_pretrain.pth"
+      matcher_cfg:
+        with_dense_pred: True
+        num_centers: 8
+        use_box: False
+        use_points_or_centers: True
+        sample_range:
+          - 1
+          - 6
+        max_sample_iterations: 64
+        alpha: 1.0
+        beta: 0.0
+        exp: 0.0
+        num_merging_mask: 9
+        score_filter_cfg:
+          emd: 0.0
+          purity: 0.02
+          coverage: 0.0
+          score_filter: True  # args.use_score_filter
+          score: 0.33  # args.deep_score_filter
+          score_norm: 0.1  # args.deep_score_norm_filter
+          topk_scores_threshold: 0.0
+      memory_bank_cfg:
+        enable: True
+        category_num: 80
+        length: 4
+    dataset_cfgs:
+      fill_memory:
+        name: "coco"
+        root: "./data/coco/train2017"
+        json_file : "./data/coco/annotations/instances_train2017.json"
+        memory_pkl: "./data/coco/annotations_refsam2/memory/train2017_allClasses_length4_v1.pkl"
+        image_size: 1036
+        memory_length: 4
+        norm_img: False
+      test:
+        name: "coco"
+        root: "./data/coco/val2017"
+        json_file: "./data/coco/annotations_refsam2/val2017_100.json" # "./data/coco/annotations/instances_val2017.json"
+        image_size: 1036
+        norm_img: False
+        with_query_points: False
+    data_load_cfgs:
+      workers: 4
+
+trainer:
+  devices: 2
+  benchmark: true
+  precision: 32
+  callbacks:
+    - class_path: pytorch_lightning.callbacks.TQDMProgressBar
+      init_args:
+        refresh_rate: 10
+  logger:
+    - class_path: pytorch_lightning.loggers.CSVLogger
+      init_args:
+        flush_logs_every_n_steps: 50
+        save_dir: ./work_dirs/test_pl
