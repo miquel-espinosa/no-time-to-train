@@ -6,26 +6,25 @@ import shutil
 import tempfile
 import warnings
 
-warnings.filterwarnings("ignore")
-
+import mmengine
 import torch
 import torch.distributed as dist
-import mmengine
-
+from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from pytorch_lightning.cli import LightningCLI
 from pytorch_lightning.trainer import Trainer
-from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 
-from no_time_to_train.pl_wrapper.sam2ref_pl import RefSam2LightningModel
 from no_time_to_train.pl_wrapper.sam2matcher_pl import Sam2MatcherLightningModel
+from no_time_to_train.pl_wrapper.sam2ref_pl import RefSam2LightningModel
+
+warnings.filterwarnings("ignore")
 
 
 def collect_results_cpu(result_part, size=None, tmpdir=None):
-    
+
     # Check if distributed training is initialized
     if not dist.is_initialized():
         return result_part
-    
+
     # Reference: MMDetection
     rank = dist.get_rank()
     world_size = dist.get_world_size()
@@ -74,9 +73,12 @@ def collect_results_cpu(result_part, size=None, tmpdir=None):
 class SAM2RefLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
         parser.add_argument("--out_path", default=None, type=str)
-        parser.add_argument("--out_support_res", default=None, required=False, type=str)
-        parser.add_argument("--out_neg_pkl", default=None, required=False, type=str)
-        parser.add_argument("--out_neg_json", default=None, required=False, type=str)
+        parser.add_argument("--out_support_res",
+                            default=None, required=False, type=str)
+        parser.add_argument("--out_neg_pkl", default=None,
+                            required=False, type=str)
+        parser.add_argument("--out_neg_json", default=None,
+                            required=False, type=str)
         parser.add_argument("--export_result", default=None, type=str)
         parser.add_argument("--seed", default=None, type=int)
         parser.add_argument("--n_shot", default=None, type=int)
@@ -94,7 +96,6 @@ class SAM2RefLightningCLI(LightningCLI):
             self.model.dataset_cfgs["fill_memory"]["memory_pkl"] = self.config.test.out_neg_pkl
         else:
             pass
-
 
     def after_test(self):
         if (
@@ -118,9 +119,11 @@ class SAM2RefLightningCLI(LightningCLI):
             elif self.model.test_mode == "fill_memory_neg":
                 print("Checkpoint with negative memory is saved to %s" % save_path)
             elif self.model.test_mode == "postprocess_memory_neg":
-                print("Checkpoint with post-processed negative memory is saved to %s" % save_path)
+                print(
+                    "Checkpoint with post-processed negative memory is saved to %s" % save_path)
             else:
                 raise NotImplementedError
+            
         elif self.model.test_mode == "test" or self.model.test_mode == "test_support":
             results = copy.deepcopy(self.trainer.model.output_queue)
             results_all = collect_results_cpu(
@@ -154,7 +157,8 @@ class SAM2RefLightningCLI(LightningCLI):
                     if self.config.test.n_shot is not None and self.config.test.seed is not None:
                         output_name += f"{self.config.test.n_shot}shot_{self.config.test.seed}seed"
                     # Evaluating the results
-                    self.trainer.model.eval_dataset.evaluate(results_unpacked, output_name=output_name)
+                    self.trainer.model.eval_dataset.evaluate(
+                        results_unpacked, output_name=output_name)
                 elif self.model.test_mode == "test_support":
                     self.trainer.model.eval_dataset.evaluate(results_unpacked)
                     with open(self.config.test.out_support_res, "wb") as f:
@@ -168,13 +172,14 @@ class SAM2RefLightningCLI(LightningCLI):
                     # )
                 else:
                     raise NotImplementedError
+                
         elif self.model.test_mode == "vis_memory":
             pass
+        
         else:
-            raise NotImplementedError(f"Unrecognized test mode {self.model.test_mode}")
-
+            raise NotImplementedError(
+                f"Unrecognized test mode {self.model.test_mode}")
 
 
 if __name__ == "__main__":
     SAM2RefLightningCLI()
-
