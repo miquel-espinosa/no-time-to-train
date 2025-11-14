@@ -368,7 +368,7 @@ python run_lightening.py test --config $YAML_PATH \
     --trainer.devices 1
 ```
 
-#### (2.1 View post-process memory bank)
+#### 2.1 Visualise post-processed memory bank
 
 ```bash
 python run_lightening.py test --config $YAML_PATH \
