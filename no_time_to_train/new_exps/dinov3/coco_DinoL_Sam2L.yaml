@@ -1,0 +1,58 @@
+seed_everything: 42
+
+model:
+  class_path: no_time_to_train.pl_wrapper.sam2matcher_pl.Sam2MatcherLightningModel
+  init_args:
+    model_cfg:
+      name: "matching_baseline_noAMG"
+      sam2_cfg_file: "sam2_hiera_l.yaml"
+      sam2_ckpt_path: "./checkpoints/sam2_hiera_large.pt"
+      sam2_infer_cfgs:
+        points_per_side: 32
+        testing_point_bs: 256
+        iou_thr: 0.4
+        nms_thr: 0.5
+        num_out_instance: 100
+        kmeans_k: 4
+        n_pca_components: 3
+        cls_num_per_mask: 1
+      encoder_cfg:
+        name: "dinov3_large"
+        img_size: 592
+        patch_size: 16
+      encoder_ckpt_path: "./checkpoints/dinov3/checkpoints/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth"
+      memory_bank_cfg:
+        enable: True
+    dataset_cfgs:
+      fill_memory:
+        name: "coco"
+        root: "./data/coco/train2017"
+        json_file : "./data/coco/annotations/instances_train2017.json"
+        # class_split: "few_shot_classes"
+        image_size: 592
+        context_ratio: 0.2
+        norm_img: False
+      test:
+        name: "coco"
+        root: "./data/coco/val2017"
+        json_file: "./data/coco/annotations/instances_val2017.json" # # "./data/coco/annotations_refsam2/val2017_500.json" # "./data/coco/annotations_refsam2/val2017_100.json" #
+        # class_split: "few_shot_classes"
+        image_size: 1024
+        norm_img: False
+        with_query_points: False
+    data_load_cfgs:
+      workers: 4
+
+trainer:
+  devices: 4
+  benchmark: true
+  precision: 32
+  callbacks:
+    - class_path: pytorch_lightning.callbacks.TQDMProgressBar
+      init_args:
+        refresh_rate: 10
+  logger:
+    - class_path: pytorch_lightning.loggers.CSVLogger
+      init_args:
+        flush_logs_every_n_steps: 50
+        save_dir: ./work_dirs/test_pl

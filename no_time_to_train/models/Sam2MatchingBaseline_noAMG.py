@@ -47,6 +47,42 @@ encoder_predefined_cfgs = {
         proj_bias=True,
         ffn_bias=True,
         feat_dim=1024
+    ),
+    "dinov3_large": dict(
+        model_size="vit_large",
+        img_size=592,
+        patch_size=16,
+        # layerscale_init=1e-5,
+        ffn_layer='mlp',
+        # block_chunks=0,
+        qkv_bias=True,
+        proj_bias=True,
+        ffn_bias=True,
+        feat_dim=1024
+    ),
+    "dinov3_huge": dict(
+        model_size="vit_huge2",
+        img_size=592,
+        patch_size=16,
+        # layerscale_init=1e-5,
+        ffn_layer='mlp',
+        # block_chunks=0,
+        qkv_bias=True,
+        proj_bias=True,
+        ffn_bias=True,
+        feat_dim=1280
+    ),
+    "dinov3_7b": dict(
+        model_size="vit_7b",
+        img_size=592,
+        patch_size=16,
+        # layerscale_init=1e-5,
+        ffn_layer='mlp',
+        # block_chunks=0,
+        qkv_bias=True,
+        proj_bias=True,
+        ffn_bias=True,
+        feat_dim=4096
     )
 }
 
@@ -90,8 +126,8 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         self.predictor = build_sam2_video_predictor(sam2_cfg_file, sam2_ckpt_path)
         self.sam_img_size = 1024
 
-        encoder_name = encoder_cfg.pop("name")
-        encoder_args = copy.deepcopy(encoder_predefined_cfgs.get(encoder_name))
+        self.encoder_name = encoder_cfg.pop("name")
+        encoder_args = copy.deepcopy(encoder_predefined_cfgs.get(self.encoder_name))
         # encoder_args.update(encoder_cfg)
 
         encoder_img_size = encoder_cfg.get("img_size")
@@ -104,8 +140,33 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         self.encoder_dim = encoder_args.pop("feat_dim")
 
         self.encoder_transform = Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
-        self.encoder = dinov2_vit.__dict__[encoder_args.pop("model_size")](**encoder_args)
-        dinov2_utils.load_pretrained_weights(self.encoder, encoder_ckpt_path, "teacher")
+        if "dinov2" in self.encoder_name:
+            self.encoder = dinov2_vit.__dict__[encoder_args.pop("model_size")](**encoder_args)
+            dinov2_utils.load_pretrained_weights(self.encoder, encoder_ckpt_path, "teacher")
+        elif "dinov3" in self.encoder_name:
+            if self.encoder_name == "dinov3_small":
+                MODEL_NAME = "dinov3_vits16"
+            elif self.encoder_name == "dinov3_small_plus":
+                MODEL_NAME = "dinov3_vits16plus"
+            elif self.encoder_name == "dinov3_base":
+                MODEL_NAME = "dinov3_vitb16"
+            elif self.encoder_name == "dinov3_large":
+                MODEL_NAME = "dinov3_vitl16"
+            elif self.encoder_name == "dinov3_huge":
+                MODEL_NAME = "dinov3_vith16plus"
+            elif self.encoder_name == "dinov3_7b":
+                MODEL_NAME = "dinov3_vit7b16"
+            else:
+                raise ValueError(f"Unsupported encoder: {self.encoder_name}")
+            torch.hub.set_dir('./checkpoints/dinov3')
+            self.encoder = torch.hub.load(
+                repo_or_dir='./dinov3',
+                model=MODEL_NAME,
+                source='local',
+                weights=encoder_ckpt_path
+            )
+        else:
+            raise ValueError(f"Unsupported encoder: {self.encoder_name}")
 
         self.predictor.eval()
         self.encoder.eval()
@@ -483,23 +544,42 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         sampled_labels = sim > thr
         return sampled_points, sampled_labels
 
+    def _get_dinov3_features(self, imgs, n_layers=2, avg_n_layers=False):
+        # if self.encoder_name == "dinov3_large":
+        #     n_layers = 24
+        # elif self.encoder_name == "dinov3_huge":
+        #     n_layers = 32
+        # elif self.encoder_name == "dinov3_7b":
+        #     n_layers = 40
+        # else:
+        #     n_layers = 12  # default for dinov3_vits, dinov3_vitsp, dinov3_vitb
+        patch_tokens = self.encoder.get_intermediate_layers(imgs, n=n_layers)
+        if avg_n_layers:
+            patch_tokens = torch.stack(patch_tokens, dim=0).mean(dim=0) # average over layers
+        else:
+            patch_tokens = patch_tokens[-1] # return the last layer
+        return patch_tokens
+
     def _forward_encoder(self, imgs):
         assert len(imgs.shape) == 4
         B = imgs.shape[0]
 
-        x = self.encoder.prepare_tokens_with_masks(imgs)
-        n_skip_tokens = 1 + self.encoder.num_register_tokens
-        for i, blk in enumerate(self.encoder.blocks):
-            if i < len(self.encoder.blocks) - 1:
-                x = blk(x)
-            else:
-                x, attn = blk(x, ret_attn=True)
-                attn = attn.mean(dim=1)[:, n_skip_tokens :, n_skip_tokens :]
-        x = self.encoder.norm(x)
-        last_attn = attn
-        feats = x[:, n_skip_tokens :]
-        feats = feats.reshape(B, -1, self.encoder_dim)
-        return feats, last_attn
+        if "dinov3" in self.encoder_name:
+            return self._get_dinov3_features(imgs), None
+        else:
+            x = self.encoder.prepare_tokens_with_masks(imgs)
+            n_skip_tokens = 1 + self.encoder.num_register_tokens
+            for i, blk in enumerate(self.encoder.blocks):
+                if i < len(self.encoder.blocks) - 1:
+                    x = blk(x)
+                else:
+                    x, attn = blk(x, ret_attn=True)
+                    attn = attn.mean(dim=1)[:, n_skip_tokens :, n_skip_tokens :]
+            x = self.encoder.norm(x)
+            last_attn = attn
+            feats = x[:, n_skip_tokens :]
+            feats = feats.reshape(B, -1, self.encoder_dim)
+            return feats, last_attn
 
     def _forward_encoder_attn_roll(self, imgs):
         def _select_head(attn_ws, fancy=False):
@@ -530,18 +610,21 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         assert len(imgs.shape) == 4
         B = imgs.shape[0]
 
-        x = self.encoder.prepare_tokens_with_masks(imgs)
-        n_skip_tokens = 1 + self.encoder.num_register_tokens
-        attn = None
-        for i, blk in enumerate(self.encoder.blocks):
-            x, _attn = blk(x, ret_attn=True)
-            _attn = _select_head(_attn, fancy=False)
-            attn = _roll_attn(_attn, attn, fancy=True)
-        x = self.encoder.norm(x)
-        attn = attn[:, n_skip_tokens :, n_skip_tokens :]
-        feats = x[:, n_skip_tokens:]
-        feats = feats.reshape(B, -1, self.encoder_dim)
-        return feats, attn
+        if "dinov3" in self.encoder_name:
+            return self._get_dinov3_features(imgs), None
+        else:
+            x = self.encoder.prepare_tokens_with_masks(imgs)
+            n_skip_tokens = 1 + self.encoder.num_register_tokens
+            attn = None
+            for i, blk in enumerate(self.encoder.blocks):
+                x, _attn = blk(x, ret_attn=True)
+                _attn = _select_head(_attn, fancy=False)
+                attn = _roll_attn(_attn, attn, fancy=True)
+            x = self.encoder.norm(x)
+            attn = attn[:, n_skip_tokens :, n_skip_tokens :]
+            feats = x[:, n_skip_tokens:]
+            feats = feats.reshape(B, -1, self.encoder_dim)
+            return feats, attn
 
     def _forward_sam_decoder(
         self,
@@ -846,8 +929,12 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         assert self.mem_fill_counts[0].item() > 0
         assert self.n_pca_components == 3  # RGB
 
+        import os
+        from PIL import Image
+
         device = self.predictor.device
-        output_dir = "./results_analysis/memory_vis"
+        output_dir = f"./results_analysis/memory_vis/{self.dataset_name}_{self.encoder_name}"
+        os.makedirs(output_dir, exist_ok=True)
 
         ref_cat_ind = list(input_dicts[0]["refs_by_cat"].keys())[0]
 
@@ -862,6 +949,10 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         ref_feats = ref_feats.reshape(-1, self.encoder_dim)
 
         ref_masks_ori = input_dicts[0]["refs_by_cat"][ref_cat_ind]["masks"].to(dtype=ref_feats.dtype, device=device)
+        DO_NOT_CROP = True
+        if DO_NOT_CROP:
+            ref_masks_ori = torch.ones_like(ref_masks_ori)
+        
         ref_masks = F.interpolate(
             ref_masks_ori.unsqueeze(dim=0),
             size=(self.encoder_h, self.encoder_w),
@@ -902,9 +993,6 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         output_final = torch.cat((
             ori_img, margin, kmeans_vis_result, margin, pca_vis_result
         ), dim=1)
-
-        import os
-        from PIL import Image
 
         out_vis_img = Image.fromarray(output_final.cpu().numpy().astype(np.uint8))
         img_id = int(input_dicts[0]["refs_by_cat"][ref_cat_ind]["img_info"][0]['id'])
@@ -1013,9 +1101,11 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         tar_avg_feats = (masks @ tar_feat) / masks.sum(dim=-1, keepdim=True)
         tar_avg_feats = F.normalize(tar_avg_feats, p=2, dim=-1)
 
+        # CODE 2STEPAGGPIPE
         # mem_feats_avg = self.mem_feats_avg  # [n_class, c]
         # mem_feats_avg = F.normalize(mem_feats_avg, p=2, dim=-1)
-        #
+        
+        # CODE 2STEPAGGPIPE
         mem_feats_avg = self.mem_feats_ins_avg.mean(dim=1)  # [n_class, n_ins, c]
         mem_feats_avg = F.normalize(mem_feats_avg, p=2, dim=-1)
 
@@ -1444,6 +1534,7 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
             mode="bicubic"
         )
         tar_feat, last_attn = self._forward_encoder_attn_roll(self.encoder_transform(tar_img_encoder))
+        # tar_feat, last_attn = self._forward_encoder(self.encoder_transform(tar_img_encoder))
         tar_feat = tar_feat.reshape(-1, self.encoder_dim)  # [N, C]
 
         # ----------------------------------------------------------------------------------------
@@ -2080,7 +2171,7 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
             img_path = os.path.join(f"./data/coco/allimages", image_info["file_name"])
         else:
             img_path = os.path.join(dataset_imgs_path, image_info["file_name"])
-        out_path = os.path.join(f"./results_analysis/{dataset_name}", image_info["file_name"])
+        out_path = os.path.join(f"./results_analysis/{dataset_name}_{self.encoder_name}", image_info["file_name"])
 
         gt_masks = []
         gt_bboxes = []
