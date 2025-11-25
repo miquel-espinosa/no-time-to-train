@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.distributed as dist
 import torch.nn.functional as F
 from torchvision.ops.boxes import batched_nms
-from torchvision.transforms import Normalize
+from torchvision.transforms import Normalize, Resize, CenterCrop, Compose, InterpolationMode
 
 from sam2.build_sam import build_sam2
 from sam2.build_sam import build_sam2_video_predictor
@@ -47,6 +47,18 @@ encoder_predefined_cfgs = {
         proj_bias=True,
         ffn_bias=True,
         feat_dim=1024
+    ),
+    "dinov3_base": dict(
+        model_size="vit_base",
+        img_size=592,
+        patch_size=16,
+        # layerscale_init=1e-5,
+        ffn_layer='mlp',
+        # block_chunks=0,
+        qkv_bias=True,
+        proj_bias=True,
+        ffn_bias=True,
+        feat_dim=768
     ),
     "dinov3_large": dict(
         model_size="vit_large",
@@ -83,6 +95,36 @@ encoder_predefined_cfgs = {
         proj_bias=True,
         ffn_bias=True,
         feat_dim=4096
+    ),
+    "clip_b32": dict(
+        img_size=224,
+        patch_size=32,
+        feat_dim=768
+    ),
+    "clip_b16": dict(
+        img_size=224,
+        patch_size=16,
+        feat_dim=768
+    ),
+    "clip_l14": dict(
+        img_size=224,
+        patch_size=14,
+        feat_dim=1024
+    ),
+    "clip_l14@336px": dict(
+        img_size=336,
+        patch_size=14,
+        feat_dim=1024
+    ),
+    "PE-Spatial-L14-448": dict(
+        img_size=336,
+        patch_size=14,
+        feat_dim=1024
+    ),
+    "PE-Spatial-G14-448": dict(
+        img_size=448,
+        patch_size=14,
+        feat_dim=1536
     )
 }
 
@@ -98,6 +140,7 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         encoder_ckpt_path,
         memory_bank_cfg,
         dataset_name='coco',
+        exp_folder=None,
         dataset_imgs_path=None,
         class_names=None,
         online_vis=False,
@@ -106,6 +149,7 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         super(Sam2MatchingBaselineNoAMG, self).__init__()
 
         self.dataset_name = dataset_name
+        self.exp_folder = exp_folder
         self.class_names = class_names
         self.dataset_imgs_path = dataset_imgs_path
         self.online_vis = online_vis
@@ -165,6 +209,25 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
                 source='local',
                 weights=encoder_ckpt_path
             )
+        elif "clip" in self.encoder_name:
+            print(f"Loading CLIP encoder from {encoder_ckpt_path}")
+            import clip
+            state_dict = torch.load(encoder_ckpt_path)
+            model = clip.model.build_model(state_dict)
+            self.encoder = model.visual
+            resolution = model.visual.input_resolution
+            # Create a tensor-compatible preprocessing pipeline
+            self.clip_preprocess = Compose([
+                Resize(resolution, interpolation=InterpolationMode.BICUBIC),  # BICUBIC
+                CenterCrop(resolution),
+                Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
+            ])
+            print(f"CLIP encoder loaded successfully")
+        elif "PE-Spatial" in self.encoder_name:
+            import perception_models.core.vision_encoder.pe as pe
+            self.encoder = pe.VisionTransformer.from_config(self.encoder_name, pretrained=True, checkpoint_path=encoder_ckpt_path)
+            # TODO: Check if this is correct or use the default ImageNet normalization
+            # self.encoder_transform = Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5], inplace=True)
         else:
             raise ValueError(f"Unsupported encoder: {self.encoder_name}")
 
@@ -559,14 +622,58 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         else:
             patch_tokens = patch_tokens[-1] # return the last layer
         return patch_tokens
+    
+
+    def clip_visual_spatial_features(self, x: torch.Tensor):
+        # Patch embedding
+        x = self.encoder.conv1(x)                    # (B, C, H/32, W/32)
+        x = x.reshape(x.shape[0], x.shape[1], -1)    # (B, C, N)
+        x = x.permute(0, 2, 1)                       # (B, N, C)
+
+        # CLS + pos embedding
+        cls = self.encoder.class_embedding.to(x.dtype)
+        cls = cls + torch.zeros(x.shape[0], 1, x.shape[-1],
+                                dtype=x.dtype, device=x.device)
+        x = torch.cat([cls, x], dim=1)
+        x = x + self.encoder.positional_embedding.to(x.dtype)
+        x = self.encoder.ln_pre(x)
+
+        # Transformer
+        x = x.permute(1, 0, 2)
+        x = self.encoder.transformer(x)
+        x = x.permute(1, 0, 2)
+
+        # Return patch tokens, drop CLS
+        patch_tokens = x[:, 1:, :]                  # (B, 49, 768)
+        return patch_tokens
+
+    def _get_pe_spatial_features(self, imgs):
+        feats = self.encoder.forward_features(imgs, strip_cls_token=True)  # pass layer_idx=<idx> to get a specific layer's output!
+        return feats
+
+
+    def _get_clip_features(self, imgs):
+        imgs = imgs.to(dtype=torch.float16) # CLIP expects float16 inputs
+        feats = self.clip_visual_spatial_features(imgs)
+        feats = feats / feats.norm(dim=-1, keepdim=True)
+        return feats
+
 
     def _forward_encoder(self, imgs):
         assert len(imgs.shape) == 4
         B = imgs.shape[0]
 
         if "dinov3" in self.encoder_name:
+            imgs = self.encoder_transform(imgs)
             return self._get_dinov3_features(imgs), None
-        else:
+        elif "clip" in self.encoder_name:
+            imgs = self.clip_preprocess(imgs)
+            return self._get_clip_features(imgs), None
+        elif "PE-Spatial" in self.encoder_name:
+            imgs = self.encoder_transform(imgs)
+            return self._get_pe_spatial_features(imgs), None
+        elif "dinov2" in self.encoder_name:
+            imgs = self.encoder_transform(imgs)
             x = self.encoder.prepare_tokens_with_masks(imgs)
             n_skip_tokens = 1 + self.encoder.num_register_tokens
             for i, blk in enumerate(self.encoder.blocks):
@@ -580,6 +687,8 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
             feats = x[:, n_skip_tokens :]
             feats = feats.reshape(B, -1, self.encoder_dim)
             return feats, last_attn
+        else:
+            raise ValueError(f"Unsupported encoder: {self.encoder_name}")
 
     def _forward_encoder_attn_roll(self, imgs):
         def _select_head(attn_ws, fancy=False):
@@ -611,8 +720,16 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         B = imgs.shape[0]
 
         if "dinov3" in self.encoder_name:
+            imgs = self.encoder_transform(imgs)
             return self._get_dinov3_features(imgs), None
-        else:
+        elif "clip" in self.encoder_name:
+            imgs = self.clip_preprocess(imgs)
+            return self._get_clip_features(imgs), None
+        elif "PE-Spatial" in self.encoder_name:
+            imgs = self.encoder_transform(imgs)
+            return self._get_pe_spatial_features(imgs), None
+        elif "dinov2" in self.encoder_name:
+            imgs = self.encoder_transform(imgs)
             x = self.encoder.prepare_tokens_with_masks(imgs)
             n_skip_tokens = 1 + self.encoder.num_register_tokens
             attn = None
@@ -625,6 +742,8 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
             feats = x[:, n_skip_tokens:]
             feats = feats.reshape(B, -1, self.encoder_dim)
             return feats, attn
+        else:
+            raise ValueError(f"Unsupported encoder: {self.encoder_name}")
 
     def _forward_sam_decoder(
         self,
@@ -891,7 +1010,6 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
                 size=(self.encoder_img_size, self.encoder_img_size),
                 mode="bicubic"
             )
-            ref_imgs = self.encoder_transform(ref_imgs)
             ref_feats, _ = self._forward_encoder(ref_imgs)
             ref_feats = ref_feats.reshape(1, -1, self.encoder_dim)
 
@@ -931,9 +1049,13 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
 
         import os
         from PIL import Image
+        import cv2
 
         device = self.predictor.device
-        output_dir = f"./results_analysis/memory_vis/{self.dataset_name}_{self.encoder_name}"
+        if self.exp_folder:
+            output_dir = f"{self.exp_folder}/memory_vis"
+        else:
+            output_dir = f"./results_analysis/memory_vis/{self.dataset_name}_{self.encoder_name}"
         os.makedirs(output_dir, exist_ok=True)
 
         ref_cat_ind = list(input_dicts[0]["refs_by_cat"].keys())[0]
@@ -944,12 +1066,11 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
             size=(self.encoder_img_size, self.encoder_img_size),
             mode="bicubic"
         )
-        ref_imgs_normed = self.encoder_transform(ref_imgs)
-        ref_feats, _ = self._forward_encoder(ref_imgs_normed)
+        ref_feats, _ = self._forward_encoder(ref_imgs)
         ref_feats = ref_feats.reshape(-1, self.encoder_dim)
 
         ref_masks_ori = input_dicts[0]["refs_by_cat"][ref_cat_ind]["masks"].to(dtype=ref_feats.dtype, device=device)
-        DO_NOT_CROP = True
+        DO_NOT_CROP = False
         if DO_NOT_CROP:
             ref_masks_ori = torch.ones_like(ref_masks_ori)
         
@@ -988,7 +1109,29 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
             device,
             transparency=1.0
         )
-        ori_img = ref_imgs[0].permute(1, 2, 0) * 255.0
+        # Convert to uint8 immediately to avoid float precision artifacts
+        # ref_imgs is typically normalized to [0, 1], so multiply by 255 and clamp
+        ori_img = (ref_imgs[0].permute(1, 2, 0) * 255.0).clamp(0, 255).to(torch.uint8).to(torch.float32)
+        
+        # Get the original mask for contour drawing
+        ref_masks_ori_single = input_dicts[0]["refs_by_cat"][ref_cat_ind]["masks"][0].to(device=device)
+        ref_masks_ori_single = F.interpolate(
+            ref_masks_ori_single.unsqueeze(0).unsqueeze(0),
+            size=(self.encoder_img_size, self.encoder_img_size),
+            mode="nearest"
+        ).squeeze()
+        
+        # Create image with mask contour
+        ori_img_with_contour = ori_img.clone()
+        mask_np = ref_masks_ori_single.cpu().numpy().astype(np.uint8)
+        contours, _ = cv2.findContours(mask_np, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        ori_img_with_contour_np = ori_img_with_contour.cpu().numpy().astype(np.uint8).copy()  # Make contiguous copy
+        cv2.drawContours(ori_img_with_contour_np, contours, -1, (255, 0, 0), 2)  # Red contour with thickness 2
+        ori_img_with_contour = torch.from_numpy(ori_img_with_contour_np).to(device=device, dtype=torch.float32)
+        
+        # Convert kmeans and pca results to uint8 as well
+        kmeans_vis_result = kmeans_vis_result.clamp(0, 255).to(torch.uint8).to(torch.float32)
+        pca_vis_result = pca_vis_result.clamp(0, 255).to(torch.uint8).to(torch.float32)
         margin = torch.zeros((ori_img.shape[0], 5, 3), dtype=ori_img.dtype, device=device) + 255
         output_final = torch.cat((
             ori_img, margin, kmeans_vis_result, margin, pca_vis_result
@@ -997,6 +1140,14 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         out_vis_img = Image.fromarray(output_final.cpu().numpy().astype(np.uint8))
         img_id = int(input_dicts[0]["refs_by_cat"][ref_cat_ind]["img_info"][0]['id'])
         out_vis_img.save(os.path.join(output_dir, "%d_%d.png" % (ref_cat_ind, img_id)))
+        
+        # Save PCA visualization separately
+        pca_only_img = Image.fromarray(pca_vis_result.cpu().numpy().astype(np.uint8))
+        pca_only_img.save(os.path.join(output_dir, "%d_%d_pca_cropped.png" % (ref_cat_ind, img_id)))
+        
+        # Save ref_image with contour
+        ref_img = Image.fromarray(ori_img_with_contour.cpu().numpy().astype(np.uint8))
+        ref_img.save(os.path.join(output_dir, "%d_%d_ref.png" % (ref_cat_ind, img_id)))
         return {}
 
     def _compute_sim_attn_guided_global_avg(self, tar_feat, attn_weights, masks_feat_size_bool):
@@ -1109,6 +1260,9 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         mem_feats_avg = self.mem_feats_ins_avg.mean(dim=1)  # [n_class, n_ins, c]
         mem_feats_avg = F.normalize(mem_feats_avg, p=2, dim=-1)
 
+        # Ensure both tensors have the same dtype for matrix multiplication (CLIP uses float16)
+        mem_feats_avg = mem_feats_avg.to(dtype=tar_avg_feats.dtype)
+        
         sim_avg = tar_avg_feats @ mem_feats_avg.t()  # [n_masks, n_class]
         if softmax:
             sim_avg = torch.softmax(sim_avg / temp, dim=-1)
@@ -1533,7 +1687,7 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
             size=(self.encoder_img_size, self.encoder_img_size),
             mode="bicubic"
         )
-        tar_feat, last_attn = self._forward_encoder_attn_roll(self.encoder_transform(tar_img_encoder))
+        tar_feat, last_attn = self._forward_encoder_attn_roll(tar_img_encoder)
         # tar_feat, last_attn = self._forward_encoder(self.encoder_transform(tar_img_encoder))
         tar_feat = tar_feat.reshape(-1, self.encoder_dim)  # [N, C]
 
@@ -1740,15 +1894,15 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
 
         
         if lr_masks_out.shape[0] == 0:
-            raise ValueError("No masks found")
-            # self._reset()
-            # return [{
-            #     "binary_masks": torch.zeros((0, ori_h, ori_w), device=device).bool(),
-            #     "bboxes": torch.zeros((0, 4), device=device),
-            #     "scores": torch.zeros((0,), device=device),
-            #     "labels": torch.zeros((0,), dtype=torch.long, device=device),
-            #     "image_info": input_dicts[0]["target_img_info"],
-            # }]
+            # raise ValueError("No masks found")
+            self._reset()
+            return [{
+                "binary_masks": torch.zeros((0, ori_h, ori_w), device=device).bool(),
+                "bboxes": torch.zeros((0, 4), device=device),
+                "scores": torch.zeros((0,), device=device),
+                "labels": torch.zeros((0,), dtype=torch.long, device=device),
+                "image_info": input_dicts[0]["target_img_info"],
+            }]
 
         masks_out_binary = F.interpolate(
             lr_masks_out.unsqueeze(dim=1),
@@ -1847,6 +2001,7 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
                                     score_thr=self.vis_thr,
                                     show_scores=True,
                                     dataset_name=self.dataset_name,
+                                    exp_folder=self.exp_folder,
                                     dataset_imgs_path=self.dataset_imgs_path,
                                     class_names=self.class_names)
         # self._vis_results_online(output_dict, input_dicts[0]["tar_anns_by_cat"], score_thr=0.5, show_scores=True, dataset_name='lvis')
@@ -2155,7 +2310,7 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         else:
             raise NotImplementedError(f"Unrecognized data mode during inference: {data_mode}")
 
-    def _vis_results_online(self, output_dict, tar_anns_by_cat, score_thr=0.65, show_scores=False, dataset_name=None, dataset_imgs_path=None, class_names=None):
+    def _vis_results_online(self, output_dict, tar_anns_by_cat, score_thr=0.65, show_scores=False, dataset_name=None, exp_folder=None, dataset_imgs_path=None, class_names=None):
         import os
         from no_time_to_train.dataset.visualization import vis_coco
 
@@ -2171,7 +2326,10 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
             img_path = os.path.join(f"./data/coco/allimages", image_info["file_name"])
         else:
             img_path = os.path.join(dataset_imgs_path, image_info["file_name"])
-        out_path = os.path.join(f"./results_analysis/{dataset_name}_{self.encoder_name}", image_info["file_name"])
+        if exp_folder:
+            out_path = os.path.join(exp_folder, "results_analysis", image_info["file_name"])
+        else:
+            out_path = os.path.join(f"./results_analysis/{dataset_name}_{self.encoder_name}", image_info["file_name"])
 
         gt_masks = []
         gt_bboxes = []
