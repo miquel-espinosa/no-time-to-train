@@ -102,16 +102,23 @@ class Sam2MatcherLightningModel(LightningModule):
         if "fill_memory.class_split" in dataset_cfgs:
             dataset_cfgs["fill_memory"]["class_split"] = dataset_cfgs.pop("fill_memory.class_split")
             dataset_cfgs["fill_memory"]["cat_names"] = METAINFO[dataset_cfgs["fill_memory"]["class_split"]]
+        # Optional: on-the-fly reference blur controls for memory fill datasets
+        if "fill_memory.blur_ksize" in dataset_cfgs:
+            dataset_cfgs["fill_memory"]["blur_ksize"] = int(dataset_cfgs.pop("fill_memory.blur_ksize"))
+        if "fill_memory.blur_sigma" in dataset_cfgs:
+            dataset_cfgs["fill_memory"]["blur_sigma"] = float(dataset_cfgs.pop("fill_memory.blur_sigma"))
         if "memory_bank_cfg.length" in model_cfg:
             model_cfg["memory_bank_cfg"]["length"] = int(model_cfg.pop("memory_bank_cfg.length"))
         if "memory_bank_cfg.category_num" in model_cfg:
             model_cfg["memory_bank_cfg"]["category_num"] = int(model_cfg.pop("memory_bank_cfg.category_num"))
         if "dataset_name" in model_cfg:
             model_cfg["dataset_name"] = model_cfg.pop("dataset_name")
+        if "exp_folder" in model_cfg:
+            model_cfg["exp_folder"] = model_cfg.pop("exp_folder")
         if "test.imgs_path" in model_cfg:
             model_cfg["dataset_imgs_path"] = model_cfg.pop("test.imgs_path")
         if "test.online_vis" in model_cfg:
-            model_cfg["online_vis"] = model_cfg.pop("test.online_vis")
+            model_cfg["online_vis"] = model_cfg.pop("test.online_vis").lower() in ("true", "True")
         if "test.vis_thr" in model_cfg:
             model_cfg["vis_thr"] = float(model_cfg.pop("test.vis_thr"))
         if "test.root" in dataset_cfgs:

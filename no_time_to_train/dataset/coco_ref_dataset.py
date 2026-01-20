@@ -10,6 +10,7 @@ import torch.utils.data as data
 from torch.utils.data import DataLoader
 import os
 import numpy as np
+import cv2
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 import pycocotools.mask as mask_utils
@@ -322,6 +323,8 @@ class COCOMemoryFillDataset(COCORefTrainDataset):
         class_split=None,
         cat_names=[],
         custom_data_mode=None,
+        blur_ksize=None,
+        blur_sigma=0.0
     ):
         super(COCORefTrainDataset, self).__init__()
 
@@ -335,9 +338,16 @@ class COCOMemoryFillDataset(COCORefTrainDataset):
         self.norm_img = norm_img
         self.memory_length = memory_length
         self.semantic_ref = semantic_ref
+        # Blur configs
+        self.ref_blur_ksize = int(blur_ksize) if blur_ksize is not None else None
+        self.ref_blur_sigma = float(blur_sigma) if blur_sigma is not None else None
 
         if len(cat_names) > 0:
-            self.cat_names = cat_names
+            cleaned_cat_names = [i.replace('_', ' ') for i in cat_names]
+            if any(name in self.METAINFO['default_classes'] for name in cleaned_cat_names):
+                self.cat_names = cleaned_cat_names
+            else:
+                self.cat_names = cat_names
         elif class_split is None:
             self.cat_names = self.METAINFO['default_classes']
         else:
@@ -365,11 +375,28 @@ class COCOMemoryFillDataset(COCORefTrainDataset):
         else:
             self.data_mode = custom_data_mode
 
+    def _ensure_odd(self, k: int) -> int:
+        if k <= 0:
+            return 1
+        return k if (k % 2 == 1) else (k + 1)
+
+    def _maybe_blur_ref(self, img: torch.Tensor) -> torch.Tensor:
+        if not self.ref_blur_ksize or self.ref_blur_ksize == 0:
+            return img
+        # img is CxHxW in float; convert to HxWxC for OpenCV
+        k = self._ensure_odd(self.ref_blur_ksize)
+        sigma = self.ref_blur_sigma
+        img_np = img.permute(1, 2, 0).contiguous().detach().cpu().numpy()
+        blurred = cv2.GaussianBlur(img_np, (k, k), sigmaX=sigma, sigmaY=sigma)
+        return torch.from_numpy(blurred).permute(2, 0, 1).to(dtype=img.dtype, device=img.device)
+
 
     def __getitem__(self, index):
         sampled_data = self.all_data[index]
         ref_img_id = sampled_data['img_id']
         ref_img, ref_img_info = self._get_image_data(ref_img_id, normalize=self.norm_img)
+        # Apply blur on the full reference image (before any downstream cropping in variants)
+        ref_img = self._maybe_blur_ref(ref_img)
         cat_id = sampled_data['category_id']
 
         if not self.semantic_ref:
@@ -430,6 +457,8 @@ class COCOMemoryFillCropDataset(COCOMemoryFillDataset):
 
         # load image in original size
         ref_img, _ = self._get_image_data(ref_img_id, normalize=self.norm_img, size=(img_h_ori, img_w_ori))
+        # Apply blur on the full reference image BEFORE cropping
+        ref_img = self._maybe_blur_ref(ref_img)
         cat_id = sampled_data['category_id']
 
         ref_ann = self.coco.loadAnns(sampled_data['ann_ids'])[0]
@@ -516,7 +545,11 @@ class COCORefTestDataset(COCORefTrainDataset):
         self.ann_json_file = json_file
 
         if len(cat_names) > 0:
-            self.cat_names = cat_names
+            cleaned_cat_names = [i.replace('_', ' ') for i in cat_names]
+            if any(name in self.METAINFO['default_classes'] for name in cleaned_cat_names):
+                self.cat_names = cleaned_cat_names
+            else:
+                self.cat_names = cat_names
         elif class_split is None:
             self.cat_names = self.METAINFO['default_classes']
         else:
@@ -608,7 +641,7 @@ class COCORefTestDataset(COCORefTrainDataset):
         return results
 
 
-    def evaluate(self, results, output_name=""):
+    def evaluate(self, results, exp_folder=None, output_name=""):
         coco_results = self.coco.loadRes(results)
         if output_name != "":
             # Save results into json file
@@ -650,6 +683,32 @@ class COCORefTestDataset(COCORefTrainDataset):
         cocoEval_segm.evaluate()
         cocoEval_segm.accumulate()
         cocoEval_segm.summarize()
+        
+        # Save to txt file
+        names = [
+            "AP IoU=0.50:0.95",
+            "AP IoU=0.50",
+            "AP IoU=0.75",
+            "AP small",
+            "AP medium",
+            "AP large",
+            "AR maxDets=1",
+            "AR maxDets=10",
+            "AR maxDets=100",
+            "AR small",
+            "AR medium",
+            "AR large",
+        ]
+        
+        if exp_folder:
+            with open(f"{exp_folder}/coco_eval_stats_{output_name}.txt", "w") as f:
+                f.write("===== BBOX RESULTS =====\n")
+                for name, val in zip(names, cocoEval_bbox.stats):
+                    f.write(f"{name}: {val:.4f}\n")
+
+                f.write("\n===== SEGM RESULTS =====\n")
+                for name, val in zip(names, cocoEval_segm.stats):
+                    f.write(f"{name}: {val:.4f}\n")
 
 
     def sample_negative(self, results, out_pkl, out_json, sample_num, score_thr=0.0):
