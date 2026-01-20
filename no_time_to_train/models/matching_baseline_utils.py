@@ -166,6 +166,8 @@ def vis_kmeans(ref_imgs, ref_masks_ori, ref_cat_ind, ref_feats, ref_masks, feats
     n_centers = cat_centers.shape[0]
     assert n_centers <= len(color_template)
 
+    ref_feats = ref_feats.to(dtype=cat_centers.dtype) # CLIP uses float16
+
     center_assign = (
         F.normalize(ref_feats, p=2, dim=-1)
         @ cat_centers.t()

@@ -36,6 +36,7 @@ model:
         name: "coco"
         root: "./data/coco/val2017"
         json_file: "./data/coco/annotations/instances_val2017.json" # # "./data/coco/annotations_refsam2/val2017_500.json" # "./data/coco/annotations_refsam2/val2017_100.json" #
+        # json_file: "./data/coco/annotations_refsam2/val2017_500.json"
         # class_split: "few_shot_classes"
         image_size: 1024
         norm_img: False
