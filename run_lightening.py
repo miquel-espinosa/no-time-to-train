@@ -72,6 +72,10 @@ def collect_results_cpu(result_part, size=None, tmpdir=None):
 
 
 class SAM2RefLightningCLI(LightningCLI):
+    def __init__(self, *args, **kwargs):
+        kwargs['save_config_callback'] = None
+        super().__init__(*args, **kwargs)
+    
     def add_arguments_to_parser(self, parser):
         parser.add_argument("--out_path", default=None, type=str)
         parser.add_argument("--out_support_res", default=None, required=False, type=str)
@@ -154,9 +158,9 @@ class SAM2RefLightningCLI(LightningCLI):
                     if self.config.test.n_shot is not None and self.config.test.seed is not None:
                         output_name += f"{self.config.test.n_shot}shot_{self.config.test.seed}seed"
                     # Evaluating the results
-                    self.trainer.model.eval_dataset.evaluate(results_unpacked, output_name=output_name)
+                    self.trainer.model.eval_dataset.evaluate(results_unpacked, exp_folder=self.model.model_cfg.get("exp_folder", None), output_name=output_name)
                 elif self.model.test_mode == "test_support":
-                    self.trainer.model.eval_dataset.evaluate(results_unpacked)
+                    self.trainer.model.eval_dataset.evaluate(results_unpacked, exp_folder=self.model.model_cfg.get("exp_folder", None))
                     with open(self.config.test.out_support_res, "wb") as f:
                         pickle.dump(results_unpacked, f)
 

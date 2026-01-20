@@ -38,3 +38,12 @@ lvis_results/*
 results_analysis
 inst_to_segm/*
 notebooks/videos/*
+dinov3/*
+perception_models/*
+vlm/qwen_outputs/*
+no_time_to_train/make_plots/feature_similarity/*
+checkpoints_a100
+claptrap_checkpoints
+claptrap_data
+work_dirs_a100
+no_time_to_train/make_plots/square_images/*

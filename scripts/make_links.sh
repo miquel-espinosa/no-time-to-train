@@ -6,29 +6,33 @@
 # Determine the machine we are running on
 machine=$(hostname)
 
+# List of folders to check
+folders=("work_dirs" "checkpoints" "tmp_ckpts" "data" "results_analysis")
 
-# Make sure we are running this script in the root directory of the project, called finetune-SAM2
-current_dir=$(basename $(pwd))
-if [ "$current_dir" != "finetune-SAM2" ]; then
-    echo "Error: This script must be run from the finetune-SAM2 directory"
-    exit 1
-fi
-
-# Check if files (work_dirs, checkpoints, tmp_ckpts) are symbolic links
-if [ -L "work_dirs" ] || [ -L "checkpoints" ] || [ -L "tmp_ckpts" ] || [ -L "data" ] || [ -L "results_analysis" ]; then
-    # Check if the links are broken
-    if [ ! -e "work_dirs" ] || [ ! -e "checkpoints" ] || [ ! -e "tmp_ckpts" ] || [ ! -e "data" ] || [ ! -e "results_analysis" ]; then
-        echo "One or more symbolic links are broken. Removing them..."
-        rm -rf work_dirs checkpoints tmp_ckpts data results_analysis
-    else # They are not broken, so we don't need to do anything
-        echo "Files are already symbolic links."
-        exit 0
+# Check each folder
+for folder in "${folders[@]}"; do
+    if [ -L "$folder" ]; then
+        # It is a symbolic link
+        if [ -e "$folder" ]; then
+            # Link is not broken
+            echo "$folder: Link is not broken, doing nothing."
+        else
+            # Link is broken
+            echo "$folder: Link is broken, deleting..."
+            rm "$folder"
+            echo "$folder: Link deleted successfully."
+        fi
+    else
+        # It is not a symbolic link
+        if [ -e "$folder" ]; then
+            echo "$folder: Not a symbolic link (regular folder exists), cannot delete."
+        else
+            echo "$folder: Does not exist, will create link."
+        fi
     fi
-else
-    echo "Files are not symbolic links."
-fi
+done
 
-    
+# Create links based on machine
 if [ "$machine" == "w8724.see.ed.ac.uk" ]; then # balduran
     ln -s /localdisk/data2/miguel/projects_storage/finetune-SAM2/work_dirs ./work_dirs
     ln -s /localdisk/data2/miguel/projects_storage/finetune-SAM2/checkpoints ./checkpoints
