@@ -240,7 +240,10 @@ if __name__ == "__main__":
     if args.dataset == 'coco' or args.dataset == 'default_classes' or args.dataset == 'few_shot_classes' or args.dataset == 'coco_semantic_split_1' \
             or args.dataset == 'coco_semantic_split_2' or args.dataset == 'coco_semantic_split_3' \
             or args.dataset == 'coco_semantic_split_4':
-        all_refs_json_file = "./data/coco/annotations/instances_train2017.json"
+        if os.path.exists("./data_a100/coco/annotations/instances_train2017.json"):
+            all_refs_json_file = "./data_a100/coco/annotations/instances_train2017.json"
+        else:
+            all_refs_json_file = "./data/coco/annotations/instances_train2017.json"
         sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=True, dataset=args.dataset)
     elif args.dataset == 'lvis' or args.dataset == 'lvis_common' or args.dataset == 'lvis_frequent' or args.dataset == 'lvis_rare' \
             or args.dataset == 'lvis_minival' or args.dataset == 'lvis_minival_common' or args.dataset == 'lvis_minival_frequent' \

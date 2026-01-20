@@ -434,6 +434,308 @@ Visual results are saved in `results_analysis/my_custom_dataset/`. Note that our
 | ![000000517410](https://github.com/user-attachments/assets/9849b227-7f43-43d7-81ea-58010a623ad5) | ![000000460598](https://github.com/user-attachments/assets/7587700c-e09d-4cf6-8590-3df129c2568e) |
 
 
+## 🔬 Ablations
+
+### Backbone ablation
+
+To evaluate the transferability of our method across foundation models, we replace both the semantic
+encoder (DINOv2) and the SAM-based segmenter with several alternatives.
+
+**Semantic encoder ablation:**
+
+```bash
+# CLIP (Sizes: b16, b32, l14, l14@336px)
+bash scripts/clip/clipl14@336px.sh
+bash scripts/clip/clipl14.sh
+bash scripts/clip/clipb16.sh
+bash scripts/clip/clipb32.sh
+
+# DINOV3 (Sizes: b, l, h)
+bash scripts/dinov3/dinov3b.sh
+bash scripts/dinov3/dinov3l.sh
+bash scripts/dinov3/dinov3h.sh
+
+# PE (Sizes: g14, l14)
+bash scripts/pe/PEg14.sh
+bash scripts/pe/PEl14.sh
+```
+
+**Segmenter ablation:**
+
+```bash
+# SAM2 (Sizes: tiny, small, base+, large)
+bash scripts/sam2/sam2_tiny.sh
+bash scripts/sam2/sam2_small.sh
+bash scripts/sam2/sam2_base_plus.sh
+bash scripts/baseline/dinov2_sam_baseline.sh # SAM2 Large
+```
+
+### VLM evaluation on COCO few-shot dataset
+
+We evaluate QWEN VLM on COCO few-shot dataset.
+
+```bash
+bash scripts/vl-qwen/ablation-vl-qwen.sh
+```
+
+### Reference image heuristics
+
+To understand why different reference images lead to performance variation, we analyse the statistical properties of COCO novel classes annotations.
+
+#### ANALYSIS
+
+We study three annotation characteristics: (1) mask area (object size),
+(2) mask center location, and (3) distance to image edges.
+
+<details>
+<summary><b>Instructions:</b></summary>
+
+```bash
+# Mask area distribution
+python no_time_to_train/make_plots/mask_area_distribution.py \
+  --input data/coco/annotations/instances_val2017.json \
+  --output no_time_to_train/make_plots/mask_area_distribution/mask_area_distribution.png \
+  --edges-output no_time_to_train/make_plots/mask_area_distribution/bbox_edge_distance_histograms.png \
+  --center-output no_time_to_train/make_plots/mask_area_distribution/bbox_center_density.png \
+  --bins 80 \
+  --distance-bins 80 \
+  --disable-center-density
+
+# Bbox center positions
+python no_time_to_train/make_plots/bbox_positions.py \
+	--per-class-root data/coco/annotations/per_class_instances \
+	--filename centeredness_2d_hist_plain.png \
+	--max-cols 6 \
+	--output-dir ./no_time_to_train/make_plots/bbox_positions \
+	--outfile grid_bbox_positions.png
+```
+
+</details>
+
+<details>
+<summary><b>[OUTPUT] Mask area distribution</b></summary>
+
+add image mask_area_distribution.png here
+
+</details>
+
+<details>
+<summary><b>[OUTPUT] Bbox center density</b></summary>
+
+add image grid_bbox_positions.png here
+
+</details>
+
+<details>
+<summary><b>[OUTPUT] Bbox edge distance histograms</b></summary>
+
+image here bbox_edge_distance_histograms.png here
+
+</details>
+
+#### SELECTION
+
+We sample 100 diverse reference images per class, explicitly
+covering a range of mask sizes, centers, and edge distances. Each
+reference is evaluated on a fixed reduced validation subset.
+
+<details>
+<summary><b>Instructions:</b></summary>
+
+**Setup script:** `scripts/1shot_ref_ablation/setup.sh`:
+1. Create per class json file
+2. Analyse specific class
+3. Create reference set with different heuristics
+
+```bash
+bash scripts/1shot_ref_ablation/setup.sh
+```
+
+**Run scripts:** `scripts/1shot_ref_ablation/gpu*.sh`:
+
+4. Run pipeline for each reference set
+```bash
+# Example launch script that calls template script for each reference set
+bash scripts/1shot_ref_ablation/gpu0.sh
+```
+
+</details>
+
+
+#### RESULTS
+
+We analyze how detection scores correlate with reference image characteristics
+(mask size, center position, edge distance).
+
+<details>
+<summary><b>Instructions:</b></summary>
+
+```bash
+python no_time_to_train/make_plots/heuristics_analysis.py
+# Outputs: 
+# - no_time_to_train/make_plots/heuristics_analysis/heatmap_bbox_norm_scores.png
+# - no_time_to_train/make_plots/heuristics_analysis/heatmap_segm_norm_scores.png
+# - no_time_to_train/make_plots/heuristics_analysis/heatmap_center_bbox_norm_scores_kde_smooth.png
+# - no_time_to_train/make_plots/heuristics_analysis/heatmap_center_bbox_norm_scores.png
+# - no_time_to_train/make_plots/heuristics_analysis/heatmap_center_segm_norm_scores_kde_smooth.png
+# - no_time_to_train/make_plots/heuristics_analysis/heatmap_center_segm_norm_scores.png
+# - no_time_to_train/make_plots/heuristics_analysis/per_class_area_vs_raw_scores.png
+# - no_time_to_train/make_plots/heuristics_analysis/all_classes_area_vs_norm_scores.png
+# - no_time_to_train/make_plots/heuristics_analysis/edge_distance_vs_norm_scores.png
+# - no_time_to_train/make_plots/heuristics_analysis/bars_area_category_norm_scores.png
+# - no_time_to_train/make_plots/heuristics_analysis/bars_centered_norm_scores.png
+# - no_time_to_train/make_plots/heuristics_analysis/bars_avoid_sides_norm_scores.png
+```
+
+
+</details>
+
+<details>
+<summary><b>[OUTPUT] Barplots. Effect of mask area (left) and centeredness (right) on performance</b></summary>
+
+add image barplots.png
+
+</details>
+
+<details>
+<summary><b>[OUTPUT] Heatmaps. 2D score maps of performance as a function of mask-center location</b></summary>
+
+add image heatmaps.png here
+
+</details>
+
+<details>
+<summary><b>[OUTPUT] Reference-image performance vs. mask area for all COCO novel classes</b></summary>
+
+add image class_performance.png here
+
+</details>
+
+### Reference-image degradation
+
+We evaluate our method under progressively degraded reference images by applying increasing
+levels of Gaussian blur.
+
+add image grid_blur_ablation_class_0.png here
+
+<details>
+<summary><b>Instructions:</b></summary>
+
+```bash
+# Run different blur levels
+bash scripts/blur_ablation/blur_ablation.sh
+
+# Plot grid of blur ablation results
+python no_time_to_train/make_plots/plot_blur_results.py \
+    --results-root ./work_dirs/blur_ablation \
+    --class-id 0 \
+    --max-cols 4 \
+    --output-dir ./no_time_to_train/make_plots/blur_ablation \
+    --outfile grid_blur_ablation_class_0.png
+```
+
+</details>
+
+### Feature similarity
+
+Script for visualising feature similarity between reference images and target images.
+
+It generates single-feature similarity (path features), and prototype-based similarity (aggregated features).
+
+add feature_similarity_small.png here
+
+<details>
+<summary><b>Instructions:</b></summary>
+
+```bash
+python no_time_to_train/make_plots/feature_similarity.py \
+  --classes orange \  
+  --num-images 20 \
+  --min-area 12 \
+  --max-area 25000 \
+  --min-instances 2 \
+  --seed 123 \
+  --max-per-class 12
+```
+</details>
+
+### T-SNE plots (DINOv2 feature separability)
+
+t-SNE of DINOv2 features shows clear separation for dissimilar classes
+but heavy overlap for similar ones, suggesting that confusion stems from
+backbone feature geometry rather than prototypes selection.
+
+add image tsne_val2017_all.png here
+
+<details>
+<summary><b>Instructions:</b></summary>
+
+Extract features
+
+```bash
+python no_time_to_train/make_plots/tsne-coco.py --extract
+```
+
+Plot T-SNE plots
+
+```bash
+# Example spoon vs fork
+python no_time_to_train/make_plots/tsne-coco.py --classes cat dog
+```
+
+</details>
+
+## 🛠️ Helpers
+
+### Visualise memory
+
+add image feature_comparison_small.png here
+
+<details>
+<summary><b>Instructions</b></summary>
+
+To visualise the memory bank (PCA and K-means visualisations) for a given experiment, adjust the following command.
+
+Set `DO_NOT_CROP` to True/False (in `no_time_to_train/models/Sam2MatchingBaseline_noAMG.py`) to visualise the reference image with/without the cropped mask.
+
+```bash
+python run_lightening.py test --config $CONFIG \
+    --model.test_mode vis_memory \
+    --ckpt_path $RESULTS_DIR/memory_postprocessed.ckpt \
+    --model.init_args.dataset_cfgs.fill_memory.memory_pkl $RESULTS_DIR/$FILENAME \
+    --model.init_args.dataset_cfgs.fill_memory.memory_length $SHOT \
+    --model.init_args.dataset_cfgs.fill_memory.class_split $CLASS_SPLIT \
+    --model.init_args.model_cfg.dataset_name $CLASS_SPLIT \
+    --model.init_args.model_cfg.memory_bank_cfg.length $SHOT \
+    --model.init_args.model_cfg.memory_bank_cfg.category_num $CATEGORY_NUM \
+    --trainer.devices 1
+```
+</details>
+
+### Resize images to 512x512 (make the images square)
+
+To resize the images to 512x512 and save them to a new directory, run the following command. This is for the paper figures.
+
+<details>
+<summary><b>Instructions:</b></summary>
+
+```bash
+python no_time_to_train/make_plots/paper_fig_square_imgs.py
+```
+</details>
+
+
+### Model size and memory
+
+To calculate the model size and memory, run the following command.
+
+<details>
+<summary><b>Instructions:</b></summary>
+
+- See `no_time_to_train/models/Sam2MatchingBaseline_noAMG_model_and_memory.py` for the model size and memory calculation.
+(Easiest: temporarily replace by Sam2MatchingBaseline_noAMG.py, then rename back.)
+</details>
+
 ## 📚 Citation
 
 If you use this work, please cite us:
