@@ -1841,6 +1841,17 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         obj_feats_out = obj_feats_out[pos_inds]
         masks_feat_size_bool = masks_feat_size_bool[pos_inds]
         labels_out = labels_out[pos_inds]
+        
+        
+        # -----------------------------REBUTTAL-----------------------------
+        # --- IoU-based suppression--------------------------------------
+        # pred_ious_out = pred_ious_out[pos_inds]
+        # thr = 0.45
+        # k = 20.0   # strength (10=soft, 20=medium, 30=strong)
+        # decay = torch.sigmoid((pred_ious_out - thr) * k)
+        # scores_out = scores_out * decay
+        # -----------------------------REBUTTAL-----------------------------
+
 
         # query_points = query_points[keep_inds // self.cls_num_per_mask]
 
