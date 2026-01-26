@@ -514,22 +514,19 @@ python no_time_to_train/make_plots/bbox_positions.py \
 
 <details>
 <summary><b>[OUTPUT] Mask area distribution</b></summary>
-
-add image mask_area_distribution.png here
+<img width="600" height="600" alt="mask_area_distribution" src="https://github.com/user-attachments/assets/ece21119-3622-4a2f-8319-1d52ff05bf99" />
 
 </details>
 
 <details>
 <summary><b>[OUTPUT] Bbox center density</b></summary>
-
-add image grid_bbox_positions.png here
+<img width="3165" height="1627" alt="grid_bbox_positions" src="https://github.com/user-attachments/assets/dff4ddb2-a3f1-45e1-af12-8e9fffbb4d6c" />
 
 </details>
 
 <details>
 <summary><b>[OUTPUT] Bbox edge distance histograms</b></summary>
-
-image here bbox_edge_distance_histograms.png here
+<img width="1800" height="1200" alt="bbox_edge_distance_histograms" src="https://github.com/user-attachments/assets/e23d1360-599c-46a2-af59-3d071112e76e" />
 
 </details>
 
@@ -592,22 +589,19 @@ python no_time_to_train/make_plots/heuristics_analysis.py
 
 <details>
 <summary><b>[OUTPUT] Barplots. Effect of mask area (left) and centeredness (right) on performance</b></summary>
-
-add image barplots.png
+<img width="1190" height="846" alt="barplot" src="https://github.com/user-attachments/assets/e900aff5-523d-4563-aebc-0135dcbb5eb6" />
 
 </details>
 
 <details>
 <summary><b>[OUTPUT] Heatmaps. 2D score maps of performance as a function of mask-center location</b></summary>
-
-add image heatmaps.png here
+<img width="1250" height="545" alt="heatmap" src="https://github.com/user-attachments/assets/c2c59ffe-b19e-4907-b0be-68249cf5db51" />
 
 </details>
 
 <details>
 <summary><b>[OUTPUT] Reference-image performance vs. mask area for all COCO novel classes</b></summary>
-
-add image class_performance.png here
+<img width="2500" height="1432" alt="class_performance" src="https://github.com/user-attachments/assets/05a0e213-3ba5-4b4f-80ed-9b7ca782642a" />
 
 </details>
 
@@ -615,8 +609,7 @@ add image class_performance.png here
 
 We evaluate our method under progressively degraded reference images by applying increasing
 levels of Gaussian blur.
-
-add image grid_blur_ablation_class_0.png here
+<img width="2640" height="1194" alt="ablation-blur" src="https://github.com/user-attachments/assets/c2abf0ab-1578-41cf-abcf-50e43f7691f5" />
 
 <details>
 <summary><b>Instructions:</b></summary>
@@ -641,8 +634,7 @@ python no_time_to_train/make_plots/plot_blur_results.py \
 Script for visualising feature similarity between reference images and target images.
 
 It generates single-feature similarity (path features), and prototype-based similarity (aggregated features).
-
-add feature_similarity_small.png here
+<img width="2500" height="1030" alt="feature_similarity_small" src="https://github.com/user-attachments/assets/d56ec9aa-c60e-4fe6-92cd-aa6270b1d6ed" />
 
 <details>
 <summary><b>Instructions:</b></summary>
@@ -664,8 +656,7 @@ python no_time_to_train/make_plots/feature_similarity.py \
 t-SNE of DINOv2 features shows clear separation for dissimilar classes
 but heavy overlap for similar ones, suggesting that confusion stems from
 backbone feature geometry rather than prototypes selection.
-
-add image tsne_val2017_all.png here
+<img width="2500" height="1444" alt="tsne" src="https://github.com/user-attachments/assets/baffc430-1600-44a1-9a14-1b08e25a9d55" />
 
 <details>
 <summary><b>Instructions:</b></summary>
