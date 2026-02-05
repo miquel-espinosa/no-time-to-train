@@ -54,7 +54,8 @@
 </div>
 
 ---
-
+> 🚨 **Update (5th February 2026)**: The paper manuscript has been updated with extensive ablation studies, visualisations and additional experiments.
+> 
 > 🚨 **Update (22nd July 2025):** Instructions for custom datasets have been added!
 > 
 > 🔔 **Update (16th July 2025):** Code has been updated with instructions!
