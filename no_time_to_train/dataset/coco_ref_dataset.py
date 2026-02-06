@@ -447,8 +447,62 @@ class COCOMemoryFillCropDataset(COCOMemoryFillDataset):
             self.data_mode = "fill_memory"
         else:
             self.data_mode = custom_data_mode
+            
+        
+        # # ============================
+        # # DEBUG: category bookkeeping
+        # # ============================
+        # print("\n[MEMORY DATASET DEBUG]")
+        # print("Requested cat_names:", self.cat_names)
+
+        # print("\nCOCO cat_ids (filtered by cat_names):")
+        # for cid in self.cat_ids:
+        #     name = self.coco.loadCats([cid])[0]["name"]
+        #     print(f"  cat_id={cid}, name={name}")
+
+        # print("\ncat_ids_to_inds mapping:")
+        # for cid, ind in self.cat_ids_to_inds.items():
+        #     name = self.coco.loadCats([cid])[0]["name"]
+        #     print(f"  cat_id={cid} -> ind={ind} ({name})")
+
+        # print("\nsampled_memory_data keys (raw cat_ids):")
+        # for cid in self.sampled_memory_data.keys():
+        #     name = self.coco.loadCats([cid])[0]["name"]
+        #     print(f"  cat_id={cid}, name={name}, n_refs={len(self.sampled_memory_data[cid])}")
+
+        # print("\nall_data per class:")
+        # from collections import Counter
+        # cnt = Counter([d["category_id"] for d in self.all_data])
+        # for cid in self.cat_ids:
+        #     name = self.coco.loadCats([cid])[0]["name"]
+        #     print(f"  cat_id={cid}, name={name}, count={cnt.get(cid, 0)}")
+
+        # print("\nTOTAL dataset length:", len(self.all_data))
+        # print("[END MEMORY DATASET DEBUG]\n")
+        
+        missing = set(self.cat_ids) - set(d["category_id"] for d in self.all_data)
+        assert len(missing) == 0, (
+            "Memory dataset missing categories:\n" +
+            "\n".join(
+                f"{cid} ({self.coco.loadCats([cid])[0]['name']})"
+                for cid in missing
+            )
+        )
+
 
     def __getitem__(self, index):
+        
+        # sampled_data = self.all_data[index]
+        # cat_id = sampled_data["category_id"]
+        # cat_name = self.coco.loadCats([cat_id])[0]["name"]
+
+        # print(
+        #     f"[GETITEM] idx={index}, "
+        #     f"cat_id={cat_id}, "
+        #     f"cat_ind={self.cat_ids_to_inds.get(cat_id)}, "
+        #     f"name={cat_name}"
+        # )
+
         assert not self.semantic_ref
         sampled_data = self.all_data[index]
         ref_img_id = sampled_data['img_id']

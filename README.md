@@ -727,6 +727,28 @@ To calculate the model size and memory, run the following command.
 (Easiest: temporarily replace by Sam2MatchingBaseline_noAMG.py, then rename back.)
 </details>
 
+## Figures and tables
+
+Additional scripts for generating figures and tables.
+
+<details>
+<summary><b>Instructions:</b></summary>
+
+Latex table summary of the EO datasets.
+
+```bash
+python scripts/convert_datasets/summary_table_datasets.py
+```
+
+
+</details>
+
+```bash
+python scripts/convert_datasets/summary_table_datasets.py
+```
+
+</details>
+
 ## 📚 Citation
 
 If you use this work, please cite us:

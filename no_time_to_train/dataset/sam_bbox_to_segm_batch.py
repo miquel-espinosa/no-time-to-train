@@ -13,12 +13,14 @@ import matplotlib.pyplot as plt
 def parse_args():
     parser = argparse.ArgumentParser(description='Generate segmentation masks from bounding boxes using SAM')
     parser.add_argument('--input_json', type=str, required=True, help='Path to input COCO json file')
+    parser.add_argument('--output_json', type=str, default=None, help='Path to output COCO json file (default: input_json with _with_segm suffix)')
     parser.add_argument('--image_dir', type=str, required=True, help='Path to directory containing images')
     parser.add_argument('--sam_checkpoint', type=str, required=True, help='Path to SAM checkpoint')
     parser.add_argument('--model_type', type=str, default='vit_h', choices=['vit_h', 'vit_l', 'vit_b'],
                         help='SAM model type')
     parser.add_argument('--device', type=str, default='cuda', help='Device to run inference on')
     parser.add_argument('--batch_size', type=int, default=16, help='Batch size for inference')
+    parser.add_argument('--max_boxes_per_image', type=int, default=50, help='Max boxes per SAM call (chunks if exceeded)')
     parser.add_argument('--visualize', action='store_true', help='Visualize and save results')
     return parser.parse_args()
 
@@ -26,6 +28,7 @@ def load_sam_model(checkpoint_path, model_type, device):
     """Load SAM model"""
     sam = sam_model_registry[model_type](checkpoint=checkpoint_path)
     sam.to(device=device)
+    sam.eval()  # Set to eval mode for inference
     return sam
 
 def prepare_batched_inputs(images, boxes, sam):
@@ -135,6 +138,47 @@ def visualize_results(image, masks, boxes, save_path, polygons=None):
     plt.savefig(save_path, bbox_inches='tight', pad_inches=0)
     plt.close()
 
+def run_sam_on_single_image(sam, image, boxes, max_boxes):
+    """Run SAM on a single image, chunking boxes if needed to avoid OOM."""
+    resize_transform = ResizeLongestSide(sam.image_encoder.img_size)
+    transformed_image = resize_transform.apply_image(image)
+    image_tensor = torch.as_tensor(transformed_image, device=sam.device).permute(2, 0, 1).contiguous()
+    original_size = image.shape[:2]
+    
+    all_masks = []
+    
+    # Process boxes in chunks
+    for start_idx in range(0, len(boxes), max_boxes):
+        chunk_boxes = boxes[start_idx:start_idx + max_boxes]
+        
+        # Convert COCO format [x,y,w,h] to SAM format [x1,y1,x2,y2]
+        sam_boxes = []
+        for box in chunk_boxes:
+            x, y, w, h = box
+            sam_boxes.append([x, y, x + w, y + h])
+        sam_boxes = torch.tensor(sam_boxes, device=sam.device)
+        transformed_boxes = resize_transform.apply_boxes_torch(sam_boxes, original_size)
+        
+        batched_input = [{
+            'image': image_tensor,
+            'boxes': transformed_boxes,
+            'original_size': original_size
+        }]
+        
+        with torch.no_grad():
+            outputs = sam(batched_input, multimask_output=False)
+        
+        masks = outputs[0]['masks'].cpu().numpy()
+        all_masks.append(masks)
+        
+        del outputs
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    
+    # Concatenate all masks
+    return np.concatenate(all_masks, axis=0)
+
+
 def process_coco_annotations(args):
     # Load COCO annotations
     with open(args.input_json, 'r') as f:
@@ -167,71 +211,53 @@ def process_coco_annotations(args):
     print(f"\033[93mNumber of images without any annotations: {len(images_without_anns)}\033[0m")
     coco_data['images'] = [image for image in coco_data['images'] if image['id'] not in image_ids_without_anns]
     
-    # Process images in batches
-    for i in tqdm(range(0, len(coco_data['images']), args.batch_size)):
-        batch_images = coco_data['images'][i:i + args.batch_size]
-        images = []
-        boxes_batch = []
-        valid_indices = []
+    # Process images one by one (safer for images with many boxes)
+    for img_info in tqdm(coco_data['images'], desc="Processing images"):
+        # Load image
+        image_path = os.path.join(args.image_dir, img_info['file_name'])
+        image = cv2.imread(image_path)
         
-        # Prepare batch data
-        for img_idx, img_info in enumerate(batch_images):
-            # Load image
-            image_path = os.path.join(args.image_dir, img_info['file_name'])
-            image = cv2.imread(image_path)
+        if image is None:
+            raise ValueError(f"Could not load image {image_path}")
             
-            if image is None:
-                raise ValueError(f"Could not load image {image_path}")
-                
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            images.append(image)
-            
-            # Get boxes for this image
-            anns = image_to_anns.get(img_info['id'], [])
-            boxes = [ann['bbox'] for ann in anns]
-            boxes_batch.append(boxes)
-            valid_indices.append(img_idx)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         
-        if not images:  # Skip if no valid images in batch
-            raise ValueError(f"No valid images found in batch {i} to {i + args.batch_size}")
-            
-        # Run SAM on batch
-        batched_inputs = prepare_batched_inputs(images, boxes_batch, sam)
-        batched_outputs = sam(batched_inputs, multimask_output=False)
+        # Get annotations and boxes for this image
+        anns = image_to_anns.get(img_info['id'], [])
+        boxes = [ann['bbox'] for ann in anns]
         
-        # Process outputs
-        for img_idx, (img_info, image_boxes, output) in enumerate(zip([batch_images[i] for i in valid_indices], 
-                                                                     boxes_batch, 
-                                                                     batched_outputs)):
-            masks = output['masks'].cpu().numpy()
-            
-            # Update annotations with segmentation
-            anns = image_to_anns.get(img_info['id'], [])
-            for ann_idx, (ann, mask) in enumerate(zip(anns, masks)):
-                # Convert mask to COCO polygon format
-                segmentation = mask_to_polygon(ann, mask[0])
-                if len(segmentation) > 0:  # Only update if valid segmentation is found
-                    ann['segmentation'] = segmentation
-                    ann['area'] = float(mask[0].sum())
-                else:
-                    raise ValueError(f"ERROR: Failed to generate valid segmentation for image {img_info['file_name']}, annotation {ann_idx}")
-                    # Use RLE format as fallback when polygon conversion fails
-                    # rle = mask_to_rle_coco(mask[0])
-                    # ann['segmentation'] = rle
-                    # ann['area'] = float(mask[0].sum())
-                    # ann['segmentation']['counts'] = ann['segmentation']['counts'].decode('utf-8')
-                    # print(f"    ==> Using RLE format for segmentation for image {img_info['file_name']}, annotation {ann_idx}")
-            
-            
-            # Visualize if requested
-            if args.visualize:
-                save_path = os.path.join(output_dir, f"{os.path.splitext(img_info['file_name'])[0]}_segm.png")
-                # Get polygons for visualization
-                polygons = [ann['segmentation'] for ann in anns]
-                visualize_results(images[img_idx], masks[:, 0], image_boxes, save_path, polygons=polygons)
+        if not boxes:
+            continue
+        
+        # Run SAM with box chunking
+        masks = run_sam_on_single_image(sam, image, boxes, args.max_boxes_per_image)
+        
+        # Update annotations with segmentation
+        for ann_idx, (ann, mask) in enumerate(zip(anns, masks)):
+            # Convert mask to COCO polygon format
+            segmentation = mask_to_polygon(ann, mask[0])
+            if len(segmentation) > 0:  # Only update if valid segmentation is found
+                ann['segmentation'] = segmentation
+                ann['area'] = float(mask[0].sum())
+            else:
+                raise ValueError(f"ERROR: Failed to generate valid segmentation for image {img_info['file_name']}, annotation {ann_idx}")
+        
+        # Visualize if requested
+        if args.visualize:
+            save_path = os.path.join(output_dir, f"{os.path.splitext(img_info['file_name'])[0]}_segm.png")
+            polygons = [ann['segmentation'] for ann in anns]
+            visualize_results(image, masks[:, 0], boxes, save_path, polygons=polygons)
+        
+        # Clean up
+        del masks, image
+        if torch.cuda.is_available() and 'cuda' in args.device:
+            torch.cuda.empty_cache()
     
     # Save updated COCO annotations
-    output_json = os.path.splitext(args.input_json)[0] + '_with_segm.json'
+    if args.output_json is not None:
+        output_json = args.output_json
+    else:
+        output_json = os.path.splitext(args.input_json)[0] + '_with_segm.json'
     # Add images without annotations to the COCO data
     coco_data['images'] = coco_data['images'] + images_without_anns
     with open(output_json, 'w') as f:

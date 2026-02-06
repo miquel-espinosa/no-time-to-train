@@ -1,21 +1,20 @@
 #! /bin/bash
 
 # Parse arguments
-DATASET_NAME=$1
-SHOT=$2
-DEVICES=$3
-CAT_NAMES=$4
-CATEGORY_NUM=$5
+DATASET_NAME=HRSID
+SHOT=1
+DEVICES=4,5,6,7
+NUM_DEVICES=4
+CAT_NAMES='ship'
+CATEGORY_NUM=1
+SEED=42
 
-# Additional settings
-NUM_DEVICES=$((1+${#DEVICES//[^,]/})) # Count the number of commas in DEVICES
-# ALL_DATASETS_PATH=/localdisk/data2/Users/s2254242/datasets
 ALL_DATASETS_PATH=/localdisk/data3/miguel/datasets
 DATASET_PATH=$ALL_DATASETS_PATH/$DATASET_NAME
 YAML_PATH=no_time_to_train/pl_configs/matching_cdfsod_template.yaml
+FILENAME=$SHOT\_shot_seed${SEED}.pkl
 PATH_TO_SAVE_CKPTS=./tmp_ckpts/cd_fsod/matching
 mkdir -p $PATH_TO_SAVE_CKPTS
-FIRST_DEVICE=${DEVICES%%,*}
 
 # HELPER FUNCTIONS
 # Function to run SAM segmentation
@@ -41,20 +40,26 @@ run_sam_segmentation() {
         $([ "$visualize" = true ] && echo "--visualize")
 }
 
+# Generate few-shot annotation file
+# python no_time_to_train/dataset/few_shot_sampling.py \
+#     --n-shot $SHOT --out-path $DATASET_PATH/annotations/$FILENAME \
+#     --seed $SEED --dataset $DATASET_NAME \
+#     --img-dir $DATASET_PATH/train --plot
+
 # FIRST STEP: SAM-H to segment the dataset using the bounding boxes
 # --------------------
-run_sam_segmentation $DATASET_PATH/annotations/$SHOT\_shot.json $DATASET_PATH/train true
-run_sam_segmentation $DATASET_PATH/annotations/train.json $DATASET_PATH/train
-run_sam_segmentation $DATASET_PATH/annotations/test.json $DATASET_PATH/test false
+# run_sam_segmentation $DATASET_PATH/annotations/$SHOT\_shot.json $DATASET_PATH/train true
+# run_sam_segmentation $DATASET_PATH/annotations/train.json $DATASET_PATH/train
+# run_sam_segmentation $DATASET_PATH/annotations/test.json $DATASET_PATH/test false
 
 # SECOND STEP: convert the COCO annotations to a pickle file
 # --------------------
 # Usage: python script.py <input_json_path> <output_pkl_path>
-python no_time_to_train/dataset/coco_to_pkl.py \
-    $DATASET_PATH/annotations/$SHOT\_shot\_with_segm.json \
-    $DATASET_PATH/annotations/$SHOT\_shot\_with_segm.pkl \
-    $SHOT
-echo "Second step done: converting to pickle"
+# python no_time_to_train/dataset/coco_to_pkl.py \
+#     $DATASET_PATH/annotations/$SHOT\_shot\_with_segm.json \
+#     $DATASET_PATH/annotations/$SHOT\_shot\_with_segm.pkl \
+#     $SHOT
+# echo "Second step done: converting to pickle"
 
 # THIRD STEP: Fill memory with references
 # --------------------
@@ -62,8 +67,8 @@ CUDA_VISIBLE_DEVICES=$DEVICES python run_lightening.py test --config $YAML_PATH 
     --model.test_mode fill_memory \
     --out_path $PATH_TO_SAVE_CKPTS/$DATASET_NAME\_$SHOT\_refs_memory.pth \
     --model.init_args.dataset_cfgs.fill_memory.root $DATASET_PATH/train \
-    --model.init_args.dataset_cfgs.fill_memory.json_file $DATASET_PATH/annotations/$SHOT\_shot\_with_segm.json \
-    --model.init_args.dataset_cfgs.fill_memory.memory_pkl $DATASET_PATH/annotations/$SHOT\_shot\_with_segm.pkl \
+    --model.init_args.dataset_cfgs.fill_memory.json_file $DATASET_PATH/annotations/train.json \
+    --model.init_args.dataset_cfgs.fill_memory.memory_pkl $DATASET_PATH/annotations/$FILENAME \
     --model.init_args.dataset_cfgs.fill_memory.memory_length $SHOT \
     --model.init_args.dataset_cfgs.fill_memory.cat_names $CAT_NAMES \
     --model.init_args.model_cfg.dataset_name $DATASET_NAME \
@@ -95,7 +100,10 @@ CUDA_VISIBLE_DEVICES=$DEVICES python run_lightening.py test --config $YAML_PATH 
     --model.init_args.model_cfg.memory_bank_cfg.length $SHOT \
     --model.init_args.model_cfg.memory_bank_cfg.category_num $CATEGORY_NUM \
     --model.init_args.dataset_cfgs.test.root $DATASET_PATH/test \
-    --model.init_args.dataset_cfgs.test.json_file $DATASET_PATH/annotations/test\_with_segm.json \
+    --model.init_args.dataset_cfgs.test.json_file $DATASET_PATH/annotations/test.json \
     --model.init_args.dataset_cfgs.test.cat_names $CAT_NAMES \
+    --model.init_args.model_cfg.test.imgs_path $DATASET_PATH/test \
     --trainer.devices $NUM_DEVICES
+    # --model.init_args.model_cfg.test.online_vis True \
+    # --model.init_args.model_cfg.test.vis_thr 0.4 \
 echo "Fifth step done: Testing on the target set"

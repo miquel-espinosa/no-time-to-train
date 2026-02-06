@@ -13,7 +13,7 @@ from no_time_to_train.dataset.data_utils import is_valid_annotation
 from no_time_to_train.dataset.metainfo import METAINFO
 
 
-def sample_memory_dataset(json_file, out_path, memory_length, remove_bad, dataset='coco', allow_duplicates=False, allow_invalid=False):
+def sample_memory_dataset(json_file, out_path, memory_length, remove_bad, dataset='coco', allow_duplicates=False, allow_invalid=False, skip_validation=False):
     coco = COCO(json_file)
     if dataset == 'coco':
         cat_ids = coco.getCatIds(catNms=METAINFO['default_classes'])
@@ -49,6 +49,35 @@ def sample_memory_dataset(json_file, out_path, memory_length, remove_bad, datase
         cat_ids = coco.getCatIds(catNms=METAINFO['coco_semantic_split_3'])
     elif dataset == 'coco_semantic_split_4':
         cat_ids = coco.getCatIds(catNms=METAINFO['coco_semantic_split_4'])
+    # Remote sensing datasets
+    elif dataset == 'DIOR':
+        cat_ids = coco.getCatIds(catNms=METAINFO['DIOR'])
+    elif dataset == 'FAST':
+        cat_ids = coco.getCatIds(catNms=METAINFO['FAST'])
+    elif dataset == 'HRSID':
+        cat_ids = coco.getCatIds(catNms=METAINFO['HRSID'])
+    elif dataset == 'NWPU-VHR-10' or dataset == 'NWPU':
+        cat_ids = coco.getCatIds(catNms=METAINFO['NWPU-VHR-10'])
+    elif dataset == 'SIOR':
+        cat_ids = coco.getCatIds(catNms=METAINFO['SIOR'])
+    elif dataset == 'SODA-A' or dataset == 'SODAA':
+        cat_ids = coco.getCatIds(catNms=METAINFO['SODA-A'])
+    elif dataset == 'SOTA':
+        cat_ids = coco.getCatIds(catNms=METAINFO['SOTA'])
+    elif dataset == 'iSAID':
+        cat_ids = coco.getCatIds(catNms=METAINFO['iSAID'])
+    elif dataset == 'SSDD':
+        cat_ids = coco.getCatIds(catNms=METAINFO['SSDD'])
+    elif dataset == 'MAPPING':
+        cat_ids = coco.getCatIds(catNms=METAINFO['MAPPING'])
+    elif dataset == 'ROOF':
+        cat_ids = coco.getCatIds(catNms=METAINFO['ROOF'])
+    elif dataset == 'VEDAI512':
+        cat_ids = coco.getCatIds(catNms=METAINFO['VEDAI512'])
+    elif dataset == 'VEDAI1024':
+        cat_ids = coco.getCatIds(catNms=METAINFO['VEDAI1024'])
+    elif dataset == 'XVIEW':
+        cat_ids = coco.getCatIds(catNms=METAINFO['XVIEW'])
     else:
         cat_ids = coco.getCatIds(catNms=METAINFO['default_classes'])
 
@@ -73,7 +102,7 @@ def sample_memory_dataset(json_file, out_path, memory_length, remove_bad, datase
         for i in range(len(cat_data)):
             img_id, ann_id = cat_data[i]
             img_info = coco.loadImgs([img_id])[0]
-            if not is_valid_annotation(coco.loadAnns([ann_id])[0], img_info):
+            if not skip_validation and not is_valid_annotation(coco.loadAnns([ann_id])[0], img_info):
                 if allow_invalid:
                     invalid_annotations.append({'img_id': img_id, 'ann_ids': [ann_id]})
                 continue
@@ -89,11 +118,15 @@ def sample_memory_dataset(json_file, out_path, memory_length, remove_bad, datase
                 print("Warning: Class %d has no valid samples. But has %d invalid samples. We allow invalid samples." % (cat_id, len(invalid_annotations)))
                 sampled_data_by_cat[cat_id] = invalid_annotations[:memory_length]
             if allow_duplicates:
-                needed_samples = memory_length - len(sampled_data_by_cat[cat_id])
+                current_samples = len(sampled_data_by_cat[cat_id])
+                if current_samples == 0:
+                    print("Warning: Class %d has 0 samples. Skipping this class." % cat_id)
+                    continue
+                needed_samples = memory_length - current_samples
                 print("Warning: Class %d has less than %d samples. We need %d more samples." % (cat_id, memory_length, needed_samples))
                 # Allow duplicates. Add first, then second, until we have enough.
                 for i in range(needed_samples):
-                    sampled_data_by_cat[cat_id].append(sampled_data_by_cat[cat_id][i])
+                    sampled_data_by_cat[cat_id].append(sampled_data_by_cat[cat_id][i % current_samples])
             else:
                 raise ValueError("Reference for class %d is not enough" % cat_id)
 
@@ -253,6 +286,49 @@ if __name__ == "__main__":
     elif args.dataset == 'pascal_voc_split_1' or args.dataset == 'pascal_voc_split_2' or args.dataset == 'pascal_voc_split_3':
         all_refs_json_file = "./data/pascal_voc/annotations/voc0712_trainval_with_segm.json"
         sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=True, dataset=args.dataset)
+    # Remote sensing datasets
+    elif args.dataset == 'DIOR':
+        all_refs_json_file = "./data/DIOR/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+    elif args.dataset == 'FAST':
+        all_refs_json_file = "./data/FAST/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+    elif args.dataset == 'HRSID':
+        all_refs_json_file = "./data/HRSID/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+    elif args.dataset == 'NWPU':
+        all_refs_json_file = "./data/NWPU/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+    elif args.dataset == 'SIOR':
+        all_refs_json_file = "./data/SIOR/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+    elif args.dataset == 'SODAA':
+        all_refs_json_file = "./data/SODAA/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+    elif args.dataset == 'SOTA':
+        all_refs_json_file = "./data/SOTA/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+    elif args.dataset == 'iSAID':
+        all_refs_json_file = "./data/iSAID/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+    elif args.dataset == 'SSDD':
+        all_refs_json_file = "./data/SSDD/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+    elif args.dataset == 'MAPPING':
+        all_refs_json_file = "./data/MAPPING/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+    elif args.dataset == 'ROOF':
+        all_refs_json_file = "./data/ROOF/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True)
+    elif args.dataset == 'VEDAI512':
+        all_refs_json_file = "./data/VEDAI512/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True)
+    elif args.dataset == 'VEDAI1024':
+        all_refs_json_file = "./data/VEDAI1024/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True)
+    elif args.dataset == 'XVIEW':
+        all_refs_json_file = "./data/XVIEW/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True)
     else:
         raise ValueError("Invalid dataset: %s" % args.dataset)
 

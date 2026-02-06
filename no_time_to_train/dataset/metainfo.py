@@ -230,6 +230,78 @@ lvis_rare = [ 'applesauce', 'apricot', 'arctic_(type_of_shoe)', 'armoire', 'armo
     ]
 
 
+# New remote sensing datasets
+DIOR_classes = [
+    'Expressway-Service-area', 'Expressway-toll-station', 'airplane', 'airport', 'baseballfield', 
+    'basketballcourt', 'bridge', 'chimney', 'dam', 'golffield', 'groundtrackfield', 'harbor', 'overpass',
+    'ship', 'stadium', 'storagetank', 'tenniscourt', 'trainstation', 'vehicle', 'windmill'
+]
+
+FAST_classes = [
+    'A220', 'A321', 'A330', 'A350', 'ARJ21', 'Baseball-Field', 'Basketball-Court',
+    'Boeing737', 'Boeing747', 'Boeing777', 'Boeing787', 'Bridge', 'Bus', 'C919',
+    'Cargo-Truck', 'Dry-Cargo-Ship', 'Dump-Truck', 'Engineering-Ship', 'Excavator',
+    'Fishing-Boat', 'Football-Field', 'Intersection', 'Liquid-Cargo-Ship', 'Motorboat',
+    'other-airplane', 'other-ship', 'other-vehicle', 'Passenger-Ship', 'Roundabout',
+    'Small-Car', 'Tennis-Court', 'Tractor', 'Trailer', 'Truck-Tractor', 'Tugboat', 'Van', 'Warship'
+]
+
+HRSID_classes = ['ship']
+
+NWPU_VHR10_classes = [
+    'airplane', 'ship', 'storage-tank', 'baseball-diamond', 'tennis-court',
+    'basketball-court', 'ground-track-field', 'harbor', 'bridge', 'vehicle'
+]
+
+SIOR_classes = [
+    'airplane', 'airport', 'baseballfield', 'basketballcourt', 'bridge', 'chimney',
+    'expressway-service-area', 'expressway-toll-station', 'dam', 'golffield',
+    'groundtrackfield', 'harbor', 'overpass', 'ship', 'stadium', 'storagetank',
+    'tenniscourt', 'trainstation', 'vehicle', 'windmill'
+]
+
+SODA_A_classes = [
+    'airplane', 'helicopter', 'small-vehicle', 'large-vehicle', 'ship',
+    'container', 'storage-tank', 'swimming-pool', 'windmill'
+]
+
+SOTA_classes = [
+    'large-vehicle', 'swimming-pool', 'helicopter', 'bridge', 'plane', 'ship',
+    'soccer-ball-field', 'basketball-court', 'ground-track-field', 'small-vehicle',
+    'baseball-diamond', 'tennis-court', 'roundabout', 'storage-tank', 'harbor',
+    'container-crane', 'airport', 'helipad'
+]
+
+iSAID_classes = [
+    'storage_tank', 'Large_Vehicle', 'Small_Vehicle', 'plane', 'ship',
+    'Swimming_pool', 'Harbor', 'tennis_court', 'Ground_Track_Field',
+    'Soccer_ball_field', 'baseball_diamond', 'Bridge', 'basketball_court',
+    'Roundabout', 'Helicopter'
+]
+
+SSDD_classes = ['ship']
+
+MAPPING_classes = ['building']
+
+ROOF_classes = ['roof']
+
+VEDAI_classes = [
+    'car', 'truck', 'tractor', 'camping-car', 'van',
+    'other-vehicle', 'pickup', 'boat', 'plane'
+]
+
+# Note: Spaces replaced with hyphens for shell script compatibility
+XVIEW_classes = [
+    'Fixed-wing-Aircraft', 'Small-Aircraft', 'Cargo-Plane', 'Helicopter', 'Passenger-Vehicle', 'Small-Car', 'Bus', 'Pickup-Truck',
+    'Utility-Truck', 'Truck', 'Cargo-Truck', 'Truck-w/Box', 'Truck-Tractor', 'Trailer', 'Truck-w/Flatbed', 'Truck-w/Liquid',
+    'Crane-Truck', 'Railway-Vehicle', 'Passenger-Car', 'Cargo-Car', 'Flat-Car', 'Tank-car', 'Locomotive', 'Maritime-Vessel',
+    'Motorboat', 'Sailboat', 'Tugboat', 'Barge', 'Fishing-Vessel', 'Ferry', 'Yacht', 'Container-Ship',
+    'Oil-Tanker', 'Engineering-Vehicle', 'Tower-crane', 'Container-Crane', 'Reach-Stacker', 'Straddle-Carrier', 'Mobile-Crane', 'Dump-Truck',
+    'Haul-Truck', 'Scraper/Tractor', 'Front-loader/Bulldozer', 'Excavator', 'Cement-Mixer', 'Ground-Grader', 'Hut/Tent', 'Shed',
+    'Building', 'Aircraft-Hangar', 'Damaged-Building', 'Facility', 'Construction-Site', 'Vehicle-Lot', 'Helipad', 'Storage-Tank',
+    'Shipping-container-lot', 'Shipping-Container', 'Pylon', 'Tower'
+]
+
 METAINFO = {
     'lvis': tuple(lvis),
     'lvis_common': tuple(lvis_common),
@@ -289,4 +361,19 @@ METAINFO = {
             'snowboard', 'baseball glove', 'bottle', 'knife', 'apple', 'carrot',
             'cake', 'bed', 'laptop', 'cell phone', 'sink', 'vase', 'toothbrush'
         ),
+    # Remote sensing datasets
+    'DIOR': tuple(DIOR_classes),
+    'FAST': tuple(FAST_classes),
+    'HRSID': tuple(HRSID_classes),
+    'NWPU-VHR-10': tuple(NWPU_VHR10_classes),
+    'SIOR': tuple(SIOR_classes),
+    'SODA-A': tuple(SODA_A_classes),
+    'SOTA': tuple(SOTA_classes),
+    'iSAID': tuple(iSAID_classes),
+    'SSDD': tuple(SSDD_classes),
+    'MAPPING': tuple(MAPPING_classes),
+    'ROOF': tuple(ROOF_classes),
+    'VEDAI512': tuple(VEDAI_classes),
+    'VEDAI1024': tuple(VEDAI_classes),
+    'XVIEW': tuple(XVIEW_classes),
 }

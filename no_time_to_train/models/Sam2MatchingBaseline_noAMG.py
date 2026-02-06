@@ -72,6 +72,18 @@ encoder_predefined_cfgs = {
         ffn_bias=True,
         feat_dim=1024
     ),
+    "dinov3_sat_large": dict(
+        model_size="vit_large",
+        img_size=592,
+        patch_size=16,
+        # layerscale_init=1e-5,
+        ffn_layer='mlp',
+        # block_chunks=0,
+        qkv_bias=True,
+        proj_bias=True,
+        ffn_bias=True,
+        feat_dim=1024
+    ),
     "dinov3_huge": dict(
         model_size="vit_huge2",
         img_size=592,
@@ -85,6 +97,18 @@ encoder_predefined_cfgs = {
         feat_dim=1280
     ),
     "dinov3_7b": dict(
+        model_size="vit_7b",
+        img_size=592,
+        patch_size=16,
+        # layerscale_init=1e-5,
+        ffn_layer='mlp',
+        # block_chunks=0,
+        qkv_bias=True,
+        proj_bias=True,
+        ffn_bias=True,
+        feat_dim=4096
+    ),
+    "dinov3_sat_7b": dict(
         model_size="vit_7b",
         img_size=592,
         patch_size=16,
@@ -194,11 +218,11 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
                 MODEL_NAME = "dinov3_vits16plus"
             elif self.encoder_name == "dinov3_base":
                 MODEL_NAME = "dinov3_vitb16"
-            elif self.encoder_name == "dinov3_large":
+            elif self.encoder_name == "dinov3_large" or self.encoder_name == "dinov3_sat_large":
                 MODEL_NAME = "dinov3_vitl16"
             elif self.encoder_name == "dinov3_huge":
                 MODEL_NAME = "dinov3_vith16plus"
-            elif self.encoder_name == "dinov3_7b":
+            elif self.encoder_name == "dinov3_7b" or self.encoder_name == "dinov3_sat_7b":
                 MODEL_NAME = "dinov3_vit7b16"
             else:
                 raise ValueError(f"Unsupported encoder: {self.encoder_name}")
@@ -1040,6 +1064,10 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
                     self.mem_masks_neg[cat_ind_all[i], fill_ind] += masks_all[i]
                     self.mem_fill_counts_neg[cat_ind_all[i]] += 1
 
+            # filled = (self.mem_fill_counts > 0).nonzero().flatten().tolist()
+            # print(f"Filled classes: {filled}")
+            # print(f"Num filled: {len(filled)} / {self.mem_n_classes}")
+            
             return {}
 
     def forward_vis_memory(self, input_dicts):
