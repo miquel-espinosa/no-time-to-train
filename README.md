@@ -728,27 +728,60 @@ To calculate the model size and memory, run the following command.
 (Easiest: temporarily replace by Sam2MatchingBaseline_noAMG.py, then rename back.)
 </details>
 
-## Figures and tables
+## 🌍 EO datasets
 
+
+### Evaluation scripts (EO datasets)
+
+Evaluation scripts can be found in the `scripts/EO` directory. The EO datasets use the `./scripts/EO/EO_template.sh` script to run the evaluation.
+
+Each EO experiment run is saved under the `./EO_results` directory. In the experiment folder we store:
+- The summary.txt file with the configuration, and runtime of the experiment.
+- The prediction visualisations on the test set (`results_analysis` folder).
+- The memory visualisations (`memory_vis` folder).
+- The few-shot annotation pickle file.
+- The checkpoints of the model (if not cleaned up).
+
+
+### Figures and tables
 Additional scripts for generating figures and tables.
 
 <details>
-<summary><b>Instructions:</b></summary>
-
-Latex table summary of the EO datasets.
-
-```bash
-python scripts/convert_datasets/summary_table_datasets.py
-```
-
-
-</details>
+<summary><b>Summary latex table of the EO datasets:</b></summary>
 
 ```bash
 python scripts/convert_datasets/summary_table_datasets.py
 ```
 
 </details>
+
+
+<details>
+<summary><b>Accuracy plot of the EO datasets:</b></summary>
+
+```bash
+python scripts/paper_figures/plot_EO_accuracy.py \
+  --input-root ./EO_results \
+  --output-root ./EO_results
+```
+
+</details>
+
+<details>
+<summary><b>Runtime plot of the EO datasets:</b></summary>
+
+```bash
+python scripts/paper_figures/plot_EO_runtime.py \
+  --input-root ./EO_results \
+  --output-root ./EO_results
+```
+
+</details>
+
+
+
+
+
 
 ## 📚 Citation
 
