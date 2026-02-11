@@ -268,25 +268,16 @@ echo "=============================="
 # SET PATHS
 # =========================
 
-ALL_DATASETS_PATH=/localdisk/data3/miguel/datasets
+ALL_DATASETS_PATH=/localdisk/home/s2254242/datasets
 DATASET_PATH=$ALL_DATASETS_PATH/$DATASET_NAME
-YAML_PATH=no_time_to_train/new_exps/EO/$MODEL.yaml
+YAML_PATH=no_time_to_train/new_exps/EO/claptrap/$MODEL.yaml
 FILENAME=$SHOT\_shot_seed${SEED}.pkl
 # Path where everything will be saved (checkpoints, visualisations, etc.)
-PATH_TO_SAVE_CKPTS=./EO_results/$DATASET_NAME/$SHOT\_shot\_$MODEL\_seed${SEED}
+PATH_TO_SAVE_CKPTS=./EO_claptrap_results/$DATASET_NAME/$SHOT\_shot\_$MODEL\_seed${SEED}
 mkdir -p $PATH_TO_SAVE_CKPTS
 
 SUMMARY_FILE=$PATH_TO_SAVE_CKPTS/summary.txt
 START_TIME=$(date +%s)
-
-# =========================
-# CHECK IF EXPERIMENT HAS BEEN RUN
-# =========================
-
-if [ -f "$PATH_TO_SAVE_CKPTS/coco_eval_stats_.txt" ]; then
-    echo "Experiment has already been run. Skipping."
-    exit 0
-fi
 
 {
     echo "========================================"

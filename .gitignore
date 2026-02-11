@@ -50,3 +50,5 @@ no_time_to_train/make_plots/square_images/*
 no_time_to_train/make_plots/tsne_plots/*
 scripts/paper_figures/airplane_bird/*
 EO_results
+EO_claptrap_results
+lightning_logs/*

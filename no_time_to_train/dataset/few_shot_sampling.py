@@ -78,6 +78,10 @@ def sample_memory_dataset(json_file, out_path, memory_length, remove_bad, datase
         cat_ids = coco.getCatIds(catNms=METAINFO['VEDAI1024'])
     elif dataset == 'XVIEW':
         cat_ids = coco.getCatIds(catNms=METAINFO['XVIEW'])
+    elif dataset == 'RAREPLANES':
+        cat_ids = coco.getCatIds(catNms=METAINFO['RAREPLANES'])
+    elif dataset == 'RAREPLANES_SINGLE_CLASS':
+        cat_ids = coco.getCatIds(catNms=METAINFO['RAREPLANES_SINGLE_CLASS'])
     else:
         cat_ids = coco.getCatIds(catNms=METAINFO['default_classes'])
 
@@ -328,6 +332,12 @@ if __name__ == "__main__":
         sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True)
     elif args.dataset == 'XVIEW':
         all_refs_json_file = "./data/XVIEW/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True)
+    elif args.dataset == 'RAREPLANES':
+        all_refs_json_file = "./claptrap_data/RAREPLANES/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True)
+    elif args.dataset == 'RAREPLANES_SINGLE_CLASS':
+        all_refs_json_file = "./claptrap_data/RAREPLANES_SINGLE_CLASS/annotations/train.json"
         sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True)
     else:
         raise ValueError("Invalid dataset: %s" % args.dataset)

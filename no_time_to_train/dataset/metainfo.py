@@ -302,6 +302,14 @@ XVIEW_classes = [
     'Shipping-container-lot', 'Shipping-Container', 'Pylon', 'Tower'
 ]
 
+RAREPLANES_classes = [
+    'Large-Civil-Transport/Utility', 'Medium-Civil-Transport/Utility', 'Military-Bomber',
+    'Military-Fighter/Interceptor/Attack', 'Military-Trainer',
+    'Military-Transport/Utility/AWAC', 'Small-Civil-Transport/Utility'
+]
+
+RAREPLANES_SINGLE_CLASS_classes = ['airplane']
+
 METAINFO = {
     'lvis': tuple(lvis),
     'lvis_common': tuple(lvis_common),
@@ -376,4 +384,6 @@ METAINFO = {
     'VEDAI512': tuple(VEDAI_classes),
     'VEDAI1024': tuple(VEDAI_classes),
     'XVIEW': tuple(XVIEW_classes),
+    'RAREPLANES': tuple(RAREPLANES_classes),
+    'RAREPLANES_SINGLE_CLASS': tuple(RAREPLANES_SINGLE_CLASS_classes),
 }

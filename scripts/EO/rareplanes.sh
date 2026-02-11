@@ -2,10 +2,10 @@
 
 # Parse arguments
 SHOTS=(1 2 3 5 10)
-DEVICES=4,5,6,7
+DEVICES=0,1,2,3
 MODELS=(dinov3_l dinov3_sat_l dinov2_l)
 
-DATASET_NAME=VEDAI512
+DATASET_NAME=RAREPLANES
 SEED=42
 VIS_THR=0.4
 MEMORY_VIS=true
@@ -15,7 +15,7 @@ CLEAN_CKPTS=true
 for SHOT in "${SHOTS[@]}"; do
     for MODEL in "${MODELS[@]}"; do
         echo "Running EO for $DATASET_NAME with $SHOT shots and $MODEL model"
-        ./scripts/EO/EO_template.sh \
+        ./scripts/EO/EO_claptrap_template.sh \
             --dataset $DATASET_NAME \
             --shot $SHOT \
             --model $MODEL \

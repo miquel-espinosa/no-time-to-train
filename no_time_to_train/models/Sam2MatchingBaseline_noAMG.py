@@ -177,6 +177,8 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         self.class_names = class_names
         self.dataset_imgs_path = dataset_imgs_path
         self.online_vis = online_vis
+        self.max_vis_num = 60 # Logs around ~300 images
+        self._vis_count = 0
         self.vis_thr = vis_thr
         self.points_per_side = sam2_infer_cfgs.get("points_per_side")
         self.testing_point_bs = sam2_infer_cfgs.get("testing_point_bs")
@@ -226,7 +228,13 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
                 MODEL_NAME = "dinov3_vit7b16"
             else:
                 raise ValueError(f"Unsupported encoder: {self.encoder_name}")
-            torch.hub.set_dir('./checkpoints/dinov3')
+            
+            hub_dir = './checkpoints/dinov3'
+            import socket
+            hostname = socket.gethostname()
+            if hostname == "w8870.see.ed.ac.uk":
+                hub_dir = "./claptrap_checkpoints/dinov3"
+            torch.hub.set_dir(hub_dir)
             self.encoder = torch.hub.load(
                 repo_or_dir='./dinov3',
                 model=MODEL_NAME,
@@ -2035,7 +2043,7 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
             image_info=input_dicts[0]["target_img_info"],
         )
 
-        if self.online_vis:
+        if self.online_vis and self._vis_count < self.max_vis_num:
             self._vis_results_online(output_dict, input_dicts[0]["tar_anns_by_cat"],
                                     score_thr=self.vis_thr,
                                     show_scores=True,
@@ -2043,6 +2051,7 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
                                     exp_folder=self.exp_folder,
                                     dataset_imgs_path=self.dataset_imgs_path,
                                     class_names=self.class_names)
+            self._vis_count += 1
         # self._vis_results_online(output_dict, input_dicts[0]["tar_anns_by_cat"], score_thr=0.5, show_scores=True, dataset_name='lvis')
         self._reset()
         
@@ -2366,7 +2375,7 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
         else:
             img_path = os.path.join(dataset_imgs_path, image_info["file_name"])
         if exp_folder:
-            out_path = os.path.join(exp_folder, "results_analysis", image_info["file_name"])
+            out_path = os.path.join(exp_folder, "results_analysis", self.encoder_name, image_info["file_name"])
         else:
             out_path = os.path.join(f"./results_analysis/{dataset_name}_{self.encoder_name}", image_info["file_name"])
 
