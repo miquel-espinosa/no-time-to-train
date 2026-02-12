@@ -13,7 +13,71 @@ from no_time_to_train.dataset.data_utils import is_valid_annotation
 from no_time_to_train.dataset.metainfo import METAINFO
 
 
-def sample_memory_dataset(json_file, out_path, memory_length, remove_bad, dataset='coco', allow_duplicates=False, allow_invalid=False, skip_validation=False):
+def _is_fully_inside_frame(bbox, img_w, img_h):
+    """Check if bbox is completely inside the image frame (not touching any edge)."""
+    x, y, w, h = bbox
+    return x > 0 and y > 0 and (x + w) < img_w and (y + h) < img_h
+
+
+def _sort_by_heuristics(cat_data, coco):
+    """Sort annotation candidates by heuristic criteria for reference image selection.
+
+    Prefers instances that:
+    1. Are fully inside the image frame (not touching any edge)
+    2. Have medium or high area (preferring high)
+
+    Args:
+        cat_data: List of (img_id, ann_id) tuples for a single category
+        coco: COCO object with loaded annotations
+
+    Returns:
+        Sorted list of (img_id, ann_id) tuples, best candidates first
+    """
+    if len(cat_data) == 0:
+        return cat_data
+
+    # Collect annotation info and areas
+    ann_info = []
+    areas = []
+    for img_id, ann_id in cat_data:
+        ann = coco.loadAnns([ann_id])[0]
+        area = float(ann.get('area', 0.0))
+        ann_info.append((img_id, ann_id, ann, area))
+        areas.append(area)
+
+    # Compute area percentiles for this category
+    areas_np = np.array(areas)
+    p25 = float(np.percentile(areas_np, 25))
+    p75 = float(np.percentile(areas_np, 75))
+    max_area = float(np.max(areas_np)) if len(areas_np) > 0 else 1.0
+
+    scored = []
+    for img_id, ann_id, ann, area in ann_info:
+        img_info = coco.loadImgs([img_id])[0]
+        img_w = img_info['width']
+        img_h = img_info['height']
+
+        # Area category score: 2 for high (>= p75), 1 for medium (p25 to p75), 0 for low
+        if area >= p75:
+            area_score = 2
+        elif area >= p25:
+            area_score = 1
+        else:
+            area_score = 0
+
+        # Fully inside frame score: 1 if not touching any edge, 0 otherwise
+        inside_score = 1 if _is_fully_inside_frame(ann['bbox'], img_w, img_h) else 0
+
+        # Composite score: prioritize inside frame, then area category, then raw area
+        score = inside_score * 1000 + area_score * 100 + (area / max_area if max_area > 0 else 0)
+        scored.append((score, img_id, ann_id))
+
+    # Sort by score descending (best candidates first)
+    scored.sort(key=lambda x: -x[0])
+    return [(img_id, ann_id) for _, img_id, ann_id in scored]
+
+
+def sample_memory_dataset(json_file, out_path, memory_length, remove_bad, dataset='coco', allow_duplicates=False, allow_invalid=False, skip_validation=False, heuristics=False):
     coco = COCO(json_file)
     if dataset == 'coco':
         cat_ids = coco.getCatIds(catNms=METAINFO['default_classes'])
@@ -64,8 +128,8 @@ def sample_memory_dataset(json_file, out_path, memory_length, remove_bad, datase
         cat_ids = coco.getCatIds(catNms=METAINFO['SODA-A'])
     elif dataset == 'SOTA':
         cat_ids = coco.getCatIds(catNms=METAINFO['SOTA'])
-    elif dataset == 'iSAID':
-        cat_ids = coco.getCatIds(catNms=METAINFO['iSAID'])
+    elif dataset == 'ISAID':
+        cat_ids = coco.getCatIds(catNms=METAINFO['ISAID'])
     elif dataset == 'SSDD':
         cat_ids = coco.getCatIds(catNms=METAINFO['SSDD'])
     elif dataset == 'MAPPING':
@@ -102,7 +166,10 @@ def sample_memory_dataset(json_file, out_path, memory_length, remove_bad, datase
         sampled_data_by_cat[cat_id] = []
         sampled_img_ids_cat = []
         invalid_annotations = []
-        random.shuffle(cat_data)
+        if heuristics:
+            cat_data = _sort_by_heuristics(cat_data, coco)
+        else:
+            random.shuffle(cat_data)
         for i in range(len(cat_data)):
             img_id, ann_id = cat_data[i]
             img_info = coco.loadImgs([img_id])[0]
@@ -266,6 +333,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, default='coco', help='Dataset to sample from')
     parser.add_argument('--plot', action='store_true', help='Plot the sampled dataset')
     parser.add_argument('--img-dir', type=str, default=None, help='Image directory')
+    parser.add_argument('--heuristics', action='store_true', help='Enable heuristic-based reference image selection (prefer large instances fully inside the frame)')
     args = parser.parse_args()
     
     if args.img_dir is None and args.plot:
@@ -281,64 +349,64 @@ if __name__ == "__main__":
             all_refs_json_file = "./data_a100/coco/annotations/instances_train2017.json"
         else:
             all_refs_json_file = "./data/coco/annotations/instances_train2017.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=True, dataset=args.dataset)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=True, dataset=args.dataset, heuristics=args.heuristics)
     elif args.dataset == 'lvis' or args.dataset == 'lvis_common' or args.dataset == 'lvis_frequent' or args.dataset == 'lvis_rare' \
             or args.dataset == 'lvis_minival' or args.dataset == 'lvis_minival_common' or args.dataset == 'lvis_minival_frequent' \
             or args.dataset == 'lvis_minival_rare':
         all_refs_json_file = "./data/lvis/lvis_v1_train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, allow_invalid=True)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, allow_invalid=True, heuristics=args.heuristics)
     elif args.dataset == 'pascal_voc_split_1' or args.dataset == 'pascal_voc_split_2' or args.dataset == 'pascal_voc_split_3':
         all_refs_json_file = "./data/pascal_voc/annotations/voc0712_trainval_with_segm.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=True, dataset=args.dataset)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=True, dataset=args.dataset, heuristics=args.heuristics)
     # Remote sensing datasets
     elif args.dataset == 'DIOR':
         all_refs_json_file = "./data/DIOR/annotations/train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, heuristics=args.heuristics)
     elif args.dataset == 'FAST':
         all_refs_json_file = "./data/FAST/annotations/train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, heuristics=args.heuristics)
     elif args.dataset == 'HRSID':
         all_refs_json_file = "./data/HRSID/annotations/train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, heuristics=args.heuristics)
     elif args.dataset == 'NWPU':
         all_refs_json_file = "./data/NWPU/annotations/train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, heuristics=args.heuristics)
     elif args.dataset == 'SIOR':
-        all_refs_json_file = "./data/SIOR/annotations/train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+        all_refs_json_file = "./claptrap_data/SIOR/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, heuristics=args.heuristics)
     elif args.dataset == 'SODAA':
         all_refs_json_file = "./data/SODAA/annotations/train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, heuristics=args.heuristics)
     elif args.dataset == 'SOTA':
         all_refs_json_file = "./data/SOTA/annotations/train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
-    elif args.dataset == 'iSAID':
-        all_refs_json_file = "./data/iSAID/annotations/train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, heuristics=args.heuristics)
+    elif args.dataset == 'ISAID':
+        all_refs_json_file = "./claptrap_data/ISAID/annotations/train.json"
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, heuristics=args.heuristics)
     elif args.dataset == 'SSDD':
         all_refs_json_file = "./data/SSDD/annotations/train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, heuristics=args.heuristics)
     elif args.dataset == 'MAPPING':
         all_refs_json_file = "./data/MAPPING/annotations/train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, heuristics=args.heuristics)
     elif args.dataset == 'ROOF':
         all_refs_json_file = "./data/ROOF/annotations/train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True, heuristics=args.heuristics)
     elif args.dataset == 'VEDAI512':
         all_refs_json_file = "./data/VEDAI512/annotations/train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True, heuristics=args.heuristics)
     elif args.dataset == 'VEDAI1024':
         all_refs_json_file = "./data/VEDAI1024/annotations/train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True, heuristics=args.heuristics)
     elif args.dataset == 'XVIEW':
         all_refs_json_file = "./data/XVIEW/annotations/train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True, heuristics=args.heuristics)
     elif args.dataset == 'RAREPLANES':
         all_refs_json_file = "./claptrap_data/RAREPLANES/annotations/train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True, heuristics=args.heuristics)
     elif args.dataset == 'RAREPLANES_SINGLE_CLASS':
         all_refs_json_file = "./claptrap_data/RAREPLANES_SINGLE_CLASS/annotations/train.json"
-        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True)
+        sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, skip_validation=True, heuristics=args.heuristics)
     else:
         raise ValueError("Invalid dataset: %s" % args.dataset)
 
