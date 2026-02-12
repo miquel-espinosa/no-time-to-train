@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
 """
-Convert iSAID dataset to DIOR format for the pipeline.
+Convert ISAID dataset to DIOR format for the pipeline.
 
-iSAID format:
+ISAID format:
 - train/annotations/iSAID_train.json: COCO format annotations for training
 - val/annotations/iSAID_val.json: COCO format annotations for validation
 - Images must be obtained separately from DOTA dataset (same image IDs)
 
-IMPORTANT: iSAID uses images from the DOTA-v1.0 dataset. You need to:
+IMPORTANT: ISAID uses images from the DOTA-v1.0 dataset. You need to:
 1. Download DOTA images from: https://captain-whu.github.io/DOTA/index.html
 2. Provide the path to the DOTA images directory using --dota_images_dir
 
 DIOR format output:
 - train/: Training images
-- test/: Test images (uses iSAID validation set since test has no annotations)
+- test/: Test images (uses ISAID validation set since test has no annotations)
 - annotations/train.json: COCO format annotations for training
 - annotations/test.json: COCO format annotations for test
 
-iSAID Categories (15 classes):
+ISAID Categories (15 classes):
 1. storage_tank, 2. Large_Vehicle, 3. Small_Vehicle, 4. plane, 5. ship,
 6. Swimming_pool, 7. Harbor, 8. tennis_court, 9. Ground_Track_Field,
 10. Soccer_ball_field, 11. baseball_diamond, 12. Bridge, 13. basketball_court,
 14. Roundabout, 15. Helicopter
 
-NOTE: The original iSAID train and val splits have DIFFERENT category ID mappings!
+NOTE: The original ISAID train and val splits have DIFFERENT category ID mappings!
 This script remaps all annotations to use a unified canonical category order.
 """
 
@@ -35,7 +35,7 @@ from tqdm import tqdm
 import shutil
 from PIL import Image
 
-# Canonical iSAID category order (matches metainfo.py and train split)
+# Canonical ISAID category order (matches metainfo.py and train split)
 CANONICAL_CATEGORIES = [
     {"id": 1, "name": "storage_tank", "supercategory": "none"},
     {"id": 2, "name": "Large_Vehicle", "supercategory": "none"},
@@ -198,7 +198,7 @@ def process_split(src_json, src_images_dir, output_img_dir, output_json_path, sp
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Convert iSAID dataset to DIOR format',
+        description='Convert ISAID dataset to DIOR format',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Example usage:
@@ -206,16 +206,16 @@ Example usage:
       --dota_train_images_dir /path/to/DOTA/train/images \\
       --dota_val_images_dir /path/to/DOTA/val/images
 
-Note: iSAID uses images from DOTA-v1.0. Download from:
+Note: ISAID uses images from DOTA-v1.0. Download from:
   https://captain-whu.github.io/DOTA/index.html
   
-  iSAID train uses DOTA train images.
-  iSAID val uses DOTA val images.
+  ISAID train uses DOTA train images.
+  ISAID val uses DOTA val images.
         """
     )
     parser.add_argument('--isaid_dir', type=str, 
-                        default='/home/s2254242/projects/no-time-to-train/data/iSAID',
-                        help='Path to iSAID dataset (with original_files subfolder)')
+                        default='/home/s2254242/projects/no-time-to-train/data/ISAID',
+                        help='Path to ISAID dataset (with original_files subfolder)')
     parser.add_argument('--dota_images_dir', type=str,
                         default=None,
                         help='Path to DOTA images directory (deprecated, use --dota_train_images_dir)')
@@ -245,7 +245,7 @@ Note: iSAID uses images from DOTA-v1.0. Download from:
         print("ERROR: Please provide at least one DOTA images directory.")
         print("  --dota_train_images_dir for train images")
         print("  --dota_val_images_dir for val images")
-        print("\niSAID requires images from the DOTA-v1.0 dataset.")
+        print("\nISAID requires images from the DOTA-v1.0 dataset.")
         print("Please download from: https://captain-whu.github.io/DOTA/index.html")
         return
     
@@ -276,7 +276,7 @@ Note: iSAID uses images from DOTA-v1.0. Download from:
     
     os.makedirs(annotations_dir, exist_ok=True)
     
-    print(f"iSAID dataset: {isaid_dir}")
+    print(f"ISAID dataset: {isaid_dir}")
     print(f"DOTA train images: {dota_train_dir}")
     print(f"DOTA val images: {dota_val_dir}")
     print(f"Output directory: {output_dir}")
@@ -318,7 +318,7 @@ Note: iSAID uses images from DOTA-v1.0. Download from:
         print(f"  - annotations/test.json ({test_result[0]} images, {test_result[1]} annotations)")
         print(f"  - test/ ({test_result[0]} images)")
     
-    print("\nNote: iSAID validation set was used as test set since the official")
+    print("\nNote: ISAID validation set was used as test set since the official")
     print("test set does not have public annotations.")
 
 

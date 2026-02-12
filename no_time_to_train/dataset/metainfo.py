@@ -272,7 +272,7 @@ SOTA_classes = [
     'container-crane', 'airport', 'helipad'
 ]
 
-iSAID_classes = [
+ISAID_classes = [
     'storage_tank', 'Large_Vehicle', 'Small_Vehicle', 'plane', 'ship',
     'Swimming_pool', 'Harbor', 'tennis_court', 'Ground_Track_Field',
     'Soccer_ball_field', 'baseball_diamond', 'Bridge', 'basketball_court',
@@ -377,7 +377,7 @@ METAINFO = {
     'SIOR': tuple(SIOR_classes),
     'SODA-A': tuple(SODA_A_classes),
     'SOTA': tuple(SOTA_classes),
-    'iSAID': tuple(iSAID_classes),
+    'ISAID': tuple(ISAID_classes),
     'SSDD': tuple(SSDD_classes),
     'MAPPING': tuple(MAPPING_classes),
     'ROOF': tuple(ROOF_classes),

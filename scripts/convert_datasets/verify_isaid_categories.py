@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Verify that iSAID train and test annotations have consistent category mappings.
+Verify that ISAID train and test annotations have consistent category mappings.
 """
 
 import json
@@ -60,6 +60,6 @@ def verify_categories(dataset_dir):
 
 
 if __name__ == '__main__':
-    dataset_dir = sys.argv[1] if len(sys.argv) > 1 else '/localdisk/data3/miguel/datasets/iSAID'
+    dataset_dir = sys.argv[1] if len(sys.argv) > 1 else '/localdisk/data3/miguel/datasets/ISAID'
     success = verify_categories(dataset_dir)
     sys.exit(0 if success else 1)

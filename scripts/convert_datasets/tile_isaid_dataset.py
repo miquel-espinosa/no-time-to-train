@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Tile iSAID dataset images into smaller chips.
+Tile ISAID dataset images into smaller chips.
 
-iSAID images range from 800 to 4000 pixels, which can cause OOM errors.
+ISAID images range from 800 to 4000 pixels, which can cause OOM errors.
 This script tiles the dataset into smaller images suitable for the pipeline.
 
 Handles polygon segmentation masks by:
@@ -446,24 +446,24 @@ def process_split(input_json, input_img_dir, output_img_dir, tile_size, overlap,
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Tile iSAID dataset into smaller images',
+        description='Tile ISAID dataset into smaller images',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Example usage:
   python tile_isaid_dataset.py --tile_size 512 --overlap 64
 
 This will:
-1. Load existing iSAID annotations (after conversion to DIOR format)
+1. Load existing ISAID annotations (after conversion to DIOR format)
 2. Tile large images (>512px) into 512x512 chips with 64px overlap
 3. Clip bounding boxes and polygon segmentation for each tile
 4. Save new annotations as train.json and test.json
 
-Note: Run convert_isaid_to_dior_format.py first to convert iSAID to DIOR format.
+Note: Run convert_isaid_to_dior_format.py first to convert ISAID to DIOR format.
         """
     )
     parser.add_argument('--isaid_dir', type=str,
-                        default='/home/s2254242/projects/no-time-to-train/data/iSAID',
-                        help='Path to iSAID dataset (after DIOR conversion)')
+                        default='/home/s2254242/projects/no-time-to-train/data/ISAID',
+                        help='Path to ISAID dataset (after DIOR conversion)')
     parser.add_argument('--tile_size', type=int, default=512,
                         help='Size of image tiles (default: 512)')
     parser.add_argument('--overlap', type=int, default=64,
@@ -501,7 +501,7 @@ Note: Run convert_isaid_to_dior_format.py first to convert iSAID to DIOR format.
     train_tiled_dir = isaid_dir / 'train_tiled'
     test_tiled_dir = isaid_dir / 'test_tiled'
     
-    print(f"iSAID dataset: {isaid_dir}")
+    print(f"ISAID dataset: {isaid_dir}")
     print(f"Tile size: {args.tile_size}x{args.tile_size}")
     print(f"Overlap: {args.overlap}px")
     print(f"Min polygon area: {args.min_polygon_area}px²")
@@ -604,7 +604,7 @@ Note: Run convert_isaid_to_dior_format.py first to convert iSAID to DIOR format.
         print(f"Renamed {test_tiled_dir} -> {test_img_dir}")
     
     # Create/update info.txt
-    info_content = f"""Dataset: iSAID (Instance Segmentation in Aerial Images Dataset)
+    info_content = f"""Dataset: ISAID (Instance Segmentation in Aerial Images Dataset)
 Number of classes: 15
 Class names: storage_tank, Large_Vehicle, Small_Vehicle, plane, ship, Swimming_pool, 
              Harbor, tennis_court, Ground_Track_Field, Soccer_ball_field, 
@@ -613,7 +613,7 @@ Has bounding boxes: Yes
 Has instance segmentation masks: Yes
 Segmentation format: Polygon (clipped at tile boundaries)
 
-Source: https://captain-whu.github.io/iSAID/
+Source: https://captain-whu.github.io/ISAID/
 Images from: DOTA-v1.0 dataset (https://captain-whu.github.io/DOTA/)
 
 Original images: 800-4000 pixels, tiled into {args.tile_size}x{args.tile_size} chips
@@ -630,7 +630,7 @@ Note: Polygon segmentation masks are clipped at tile boundaries.
 
 Citation:
 @inproceedings{{waqas2019isaid,
-  title={{iSAID: A Large-scale Dataset for Instance Segmentation in Aerial Images}},
+  title={{ISAID: A Large-scale Dataset for Instance Segmentation in Aerial Images}},
   author={{Waqas Zamir, Syed and Arora, Aditya and Gupta, Akshita and Khan, Salman and 
           Sun, Guolei and Shahbaz Khan, Fahad and Zhu, Fan and Shao, Ling and 
           Xia, Gui-Song and Bai, Xiang}},
