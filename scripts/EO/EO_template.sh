@@ -13,8 +13,8 @@ DATASET_CAT_NAMES['FAST']="A220,A321,A330,A350,ARJ21,Baseball-Field,Basketball-C
 DATASET_CATEGORY_NUM['HRSID']=1
 DATASET_CAT_NAMES['HRSID']="ship"
 
-DATASET_CATEGORY_NUM['iSAID']=15
-DATASET_CAT_NAMES['iSAID']="storage_tank,Large_Vehicle,Small_Vehicle,plane,ship,Swimming_pool,Harbor,tennis_court,Ground_Track_Field,Soccer_ball_field,baseball_diamond,Bridge,basketball_court,Roundabout,Helicopter"
+DATASET_CATEGORY_NUM['ISAID']=15
+DATASET_CAT_NAMES['ISAID']="storage_tank,Large_Vehicle,Small_Vehicle,plane,ship,Swimming_pool,Harbor,tennis_court,Ground_Track_Field,Soccer_ball_field,baseball_diamond,Bridge,basketball_court,Roundabout,Helicopter"
 
 DATASET_CATEGORY_NUM['MAPPING']=1
 DATASET_CAT_NAMES['MAPPING']="building"
@@ -58,6 +58,8 @@ MEMORY_VIS=false
 PREDICTION_VIS=false
 VIS_THR=0.4
 CLEAN_CKPTS=false
+HEURISTICS=false
+FORCE=false
 while [[ $# -gt 0 ]]; do
     case $1 in
         --list-datasets)
@@ -103,14 +105,23 @@ while [[ $# -gt 0 ]]; do
             CLEAN_CKPTS=true
             shift 1
             ;;
+        --heuristics)
+            HEURISTICS=true
+            shift 1
+            ;;
+        --force)
+            FORCE=true
+            shift 1
+            ;;
         -h|--help)
             echo "Usage:"
             echo "  $0 --dataset DATASET --shot N --model MODEL --seed N --devices 0,1 \\"
             echo "     [--memory-vis] [--prediction-vis] [--vis-thr FLOAT] [--clean-ckpts] \\"
-            echo "     [--list-datasets] [-h|--help]"
+            echo "     [--list-datasets] [--force] [-h|--help]"
             echo ""
             echo "Other options:"
             echo "  --list-datasets     List available datasets and exit"
+            echo "  --force             Force re-run the experiment"
             echo "  -h, --help          Show this help message and exit"
             exit 0
             ;;
@@ -271,9 +282,14 @@ echo "=============================="
 ALL_DATASETS_PATH=/localdisk/data3/miguel/datasets
 DATASET_PATH=$ALL_DATASETS_PATH/$DATASET_NAME
 YAML_PATH=no_time_to_train/new_exps/EO/$MODEL.yaml
-FILENAME=$SHOT\_shot_seed${SEED}.pkl
-# Path where everything will be saved (checkpoints, visualisations, etc.)
-PATH_TO_SAVE_CKPTS=./EO_results/$DATASET_NAME/$SHOT\_shot\_$MODEL\_seed${SEED}
+if [ "$HEURISTICS" = true ]; then
+    FILENAME=$SHOT\_shot_seed${SEED}_with_heuristics.pkl
+    # Path where everything will be saved (checkpoints, visualisations, etc.)
+    PATH_TO_SAVE_CKPTS=./EO_results/$DATASET_NAME/$SHOT\_shot\_$MODEL\_seed${SEED}
+else
+    FILENAME=$SHOT\_shot_seed${SEED}.pkl
+    PATH_TO_SAVE_CKPTS=./EO_results_no_heuristics/$DATASET_NAME/$SHOT\_shot\_$MODEL\_seed${SEED}
+fi
 mkdir -p $PATH_TO_SAVE_CKPTS
 
 SUMMARY_FILE=$PATH_TO_SAVE_CKPTS/summary.txt
@@ -283,7 +299,7 @@ START_TIME=$(date +%s)
 # CHECK IF EXPERIMENT HAS BEEN RUN
 # =========================
 
-if [ -f "$PATH_TO_SAVE_CKPTS/coco_eval_stats_.txt" ]; then
+if [ -f "$PATH_TO_SAVE_CKPTS/coco_eval_stats_.txt" ] && [ "$FORCE" = false ]; then
     echo "Experiment has already been run. Skipping."
     exit 0
 fi
@@ -308,6 +324,7 @@ fi
     echo " Memory vis        : $MEMORY_VIS"
     echo " Prediction vis    : $PREDICTION_VIS"
     echo " Vis threshold     : $VIS_THR"
+    echo " Heuristics        : $HEURISTICS"
     echo " Clean ckpts       : $CLEAN_CKPTS"
     echo "----------------------------------------"
 } > "$SUMMARY_FILE"
@@ -378,7 +395,7 @@ else
     python no_time_to_train/dataset/few_shot_sampling.py \
         --n-shot $SHOT --out-path $DATASET_PATH/annotations/$FILENAME \
         --seed $SEED --dataset $DATASET_NAME \
-        --img-dir $DATASET_PATH/train --plot
+        --img-dir $DATASET_PATH/train --plot $([ "$HEURISTICS" = true ] && echo "--heuristics")
     log_step_end
 fi
 

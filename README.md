@@ -70,9 +70,9 @@
 - [🛠️ Installation instructions](#️-installation-instructions)
   - [1. Clone the repository](#1-clone-the-repository)
   - [2. Create conda environment](#2-create-conda-environment)
-  - [3. Install SAM2 and DinoV2](#3-install-sam2-and-dinov2)
+  - [3. Install SAM2 and DINOv2](#3-install-sam2-and-dinov2)
   - [4. Download datasets](#4-download-datasets)
-  - [5. Download SAM2 and DinoV2 checkpoints](#5-download-sam2-and-dinov2-checkpoints)
+  - [5. Download SAM2 and DINOv2 checkpoints](#5-download-sam2-and-dinov2-checkpoints)
 - [📊 Inference code: Reproduce 30-shot SOTA results in Few-shot COCO](#-inference-code)
   - [0. Create reference set](#0-create-reference-set)
   - [1. Fill memory with references](#1-fill-memory-with-references)
@@ -127,9 +127,9 @@ conda env create -f environment.yml
 conda activate no-time-to-train
 ```
 
-### 3. Install SAM2 and DinoV2
+### 3. Install SAM2 and DINOv2
 
-We will install SAM2 and DinoV2 from source.
+We will install SAM2 and DINOv2 from source.
 ```bash
 pip install -e .
 cd dinov2
@@ -141,7 +141,7 @@ cd ..
 
 Please download COCO dataset and place it in `data/coco`
 
-### 5. Download SAM2 and DinoV2 checkpoints
+### 5. Download SAM2 and DINOv2 checkpoints
 
 We will download the exact SAM2 checkpoints used in the paper.
 (Note, however, that SAM2.1 checkpoints are already available and might perform better.)
@@ -757,6 +757,16 @@ python scripts/convert_datasets/summary_table_datasets.py
 
 
 <details>
+<summary><b>Generate LaTeX table of the EO datasets:</b></summary>
+
+```bash
+python scripts/paper_figures/table_EO_results.py ./EO_results_no_heuristics
+```
+
+</details>
+
+
+<details>
 <summary><b>Accuracy plot of the EO datasets:</b></summary>
 
 ```bash
@@ -768,12 +778,35 @@ python scripts/paper_figures/plot_EO_accuracy.py \
 </details>
 
 <details>
+<summary><b>Summary of heuristics effect on the EO datasets:</b></summary>
+  
+```bash
+python scripts/paper_figures/plot_EO_heuristic.py \
+  --no-heuristics ./EO_results_no_heuristics \
+  --heuristics ./EO_results
+```
+
+</details>
+
+<details>
 <summary><b>Runtime plot of the EO datasets:</b></summary>
 
 ```bash
 python scripts/paper_figures/plot_EO_runtime.py \
   --input-root ./EO_results \
   --output-root ./EO_results
+```
+
+</details>
+
+<details>
+<summary><b>Generate EO grid visualisations for paper figure:</b></summary>
+
+```bash
+python scripts/paper_figures/plot_EO_grid.py \
+  --root ./EO_results_no_heuristics \
+  --dataset ISAID \
+  --shots 1
 ```
 
 </details>

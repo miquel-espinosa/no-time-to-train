@@ -712,17 +712,17 @@ class COCORefTestDataset(COCORefTrainDataset):
                 json.dump(results, f)
 
 
-        if self.class_split == "default_classes":
-            from tidecv import TIDE
-            import tidecv.datasets as tide_datasets
+        # if self.class_split == "default_classes":
+        #     from tidecv import TIDE
+        #     import tidecv.datasets as tide_datasets
 
-            tide_gt = tide_datasets.COCO(path=self.ann_json_file)
-            tide_res = TideCOCOResult(results)
-            tide = TIDE()
-            tide.evaluate_range(tide_gt, tide_res, mode=TIDE.BOX)
-            tide.summarize()
-            tide.evaluate_range(tide_gt, tide_res, mode=TIDE.MASK)
-            tide.summarize()
+        #     tide_gt = tide_datasets.COCO(path=self.ann_json_file)
+        #     tide_res = TideCOCOResult(results)
+        #     tide = TIDE()
+        #     tide.evaluate_range(tide_gt, tide_res, mode=TIDE.BOX)
+        #     tide.summarize()
+        #     tide.evaluate_range(tide_gt, tide_res, mode=TIDE.MASK)
+        #     tide.summarize()
 
 
         
