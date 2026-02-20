@@ -2,15 +2,17 @@
 
 # Parse arguments
 SHOTS=(1 2 3 5 10)
-DEVICES=4,5
+DEVICES=0,1,2,3,4,5,6,7
 MODELS=(dinov3_l dinov3_sat_l dinov2_l)
 
 DATASET_NAME=SIOR
 SEED=42
-VIS_THR=0.4
+VIS_THR=0.7
 MEMORY_VIS=true
 PREDICTION_VIS=true
 CLEAN_CKPTS=true
+HEURISTICS=false
+FORCE=false
 
 for SHOT in "${SHOTS[@]}"; do
     for MODEL in "${MODELS[@]}"; do
@@ -24,7 +26,9 @@ for SHOT in "${SHOTS[@]}"; do
             --vis-thr $VIS_THR \
             $([ "$MEMORY_VIS" = true ] && echo "--memory-vis") \
             $([ "$PREDICTION_VIS" = true ] && echo "--prediction-vis") \
-            $([ "$CLEAN_CKPTS" = true ] && echo "--clean-ckpts")
+            $([ "$CLEAN_CKPTS" = true ] && echo "--clean-ckpts") \
+            $([ "$HEURISTICS" = true ] && echo "--heuristics") \
+            $([ "$FORCE" = true ] && echo "--force")
         echo "EO for $DATASET_NAME with $SHOT shots and $MODEL model completed"
     done
 done

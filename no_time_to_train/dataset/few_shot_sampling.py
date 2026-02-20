@@ -375,7 +375,7 @@ if __name__ == "__main__":
         all_refs_json_file = "./data/SIOR/annotations/train.json"
         sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, heuristics=args.heuristics)
     elif args.dataset == 'SODAA':
-        all_refs_json_file = "./claptrap_data/SODAA/annotations/train.json"
+        all_refs_json_file = "./data/SODAA/annotations/train.json"
         sample_memory_dataset(all_refs_json_file, args.out_path, args.n_shot, remove_bad=False, dataset=args.dataset, allow_duplicates=True, heuristics=args.heuristics)
     elif args.dataset == 'SOTA':
         all_refs_json_file = "./data/SOTA/annotations/train.json"

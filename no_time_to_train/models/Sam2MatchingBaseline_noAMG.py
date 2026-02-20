@@ -2052,6 +2052,9 @@ class Sam2MatchingBaselineNoAMG(nn.Module):
                                     dataset_imgs_path=self.dataset_imgs_path,
                                     class_names=self.class_names)
             self._vis_count += 1
+        # else: # JUST RERUN FOR PLOTTING
+        #     import os
+        #     os._exit(0)
         # self._vis_results_online(output_dict, input_dicts[0]["tar_anns_by_cat"], score_thr=0.5, show_scores=True, dataset_name='lvis')
         self._reset()
         
