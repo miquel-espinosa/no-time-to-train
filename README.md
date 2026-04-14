@@ -811,6 +811,26 @@ python scripts/paper_figures/plot_EO_grid.py \
 
 </details>
 
+<details>
+<summary><b>DINOv2 PCA feature visualisation:</b></summary>
+
+```bash
+python scripts/paper_figures/plot_dinov2_pca.py --image example_images/giraffe.jpg
+python scripts/paper_figures/plot_dinov2_pca.py --image example_images/cars.jpg
+```
+
+</details>
+
+<details>
+<summary><b>SAM2 AMG feature visualisation:</b></summary>
+
+```bash
+python scripts/paper_figures/plot_sam2_amg.py --image example_images/giraffe.jpg
+python scripts/paper_figures/plot_sam2_amg.py --image example_images/cars.jpg
+```
+
+</details>
+
 
 ## ⭐ Star History
 
