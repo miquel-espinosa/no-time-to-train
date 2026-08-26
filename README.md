@@ -69,9 +69,9 @@
 - [🧠 Architecture](#-architecture)
 - [🛠️ Installation instructions](#️-installation-instructions)
   - [1. Clone the repository](#1-clone-the-repository)
-  - [2. Create conda environment](#2-create-conda-environment)
+  - [2. Create Python environment](#2-create-python-environment)
   - [3. Install SAM2 and DINOv2](#3-install-sam2-and-dinov2)
-  - [4. Download datasets](#4-download-datasets)
+  - [4. Prepare a small COCO subset](#4-prepare-a-small-coco-subset)
   - [5. Download SAM2 and DINOv2 checkpoints](#5-download-sam2-and-dinov2-checkpoints)
 - [📊 Inference code: Reproduce 30-shot SOTA results in Few-shot COCO](#-inference-code)
   - [0. Create reference set](#0-create-reference-set)
@@ -119,12 +119,15 @@ git clone https://github.com/miquel-espinosa/no-time-to-train.git
 cd no-time-to-train
 ```
 
-### 2. Create conda environment
+### 2. Create Python environment
 
-We will create a conda environment with the required packages.
+Use a virtualenv and install Python dependencies with pip (Python >= 3.10). Conda is not required.
+
 ```bash
-conda env create -f environment.yml
-conda activate no-time-to-train
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -r requirements.txt
 ```
 
 ### 3. Install SAM2 and DINOv2
@@ -137,9 +140,27 @@ pip install -e .
 cd ..
 ```
 
-### 4. Download datasets
+### 4. Prepare a small COCO subset
 
-Please download COCO dataset and place it in `data/coco`
+You do **not** need the full COCO dump (train2017 is ~18GB). For running and validating the pipeline, a small val subset is enough.
+
+```bash
+python scripts/prepare_mini_coco.py --size 100 --seed 0
+```
+
+This reuses `data/coco/annotations/instances_val2017.json` if it already exists; otherwise it downloads only the annotations archive (not the image zips), samples 100 val images, and fetches those JPEGs individually. Extra local val images outside the subset are removed.
+
+Expected layout:
+
+```
+data/coco/
+    ├── annotations/
+    │   └── instances_val2017.json
+    └── val2017/
+        └── (100 JPEGs)
+```
+
+To smoke-test the few-shot pipeline without `train2017`, point both the memory-bank and test image roots at `data/coco/val2017` (and the same json). Download the full train/val zips only if you need official few-shot numbers.
 
 ### 5. Download SAM2 and DINOv2 checkpoints
 
